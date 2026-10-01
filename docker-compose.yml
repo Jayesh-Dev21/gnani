@@ -28,6 +28,8 @@ services:
       DATABASE_URL: postgresql+psycopg://audio_notes:audio_notes@postgres:5432/audio_notes
     ports:
       - "8000:8000"
+    volumes:
+      - audio_data:/srv/data
     depends_on:
       postgres:
         condition: service_healthy
@@ -35,14 +37,21 @@ services:
   frontend:
     build:
       context: ./app/frontend
+      args:
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:8000}
     image: gnani-frontend
     restart: unless-stopped
     environment:
-      NEXT_PUBLIC_API_URL: http://localhost:8000
+      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:8000}
+      BETTER_AUTH_URL: ${BETTER_AUTH_URL:-http://localhost:3000}
+      BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:?set BETTER_AUTH_SECRET in .env}
+      DATABASE_URL: postgresql://audio_notes:audio_notes@postgres:5432/audio_notes
     ports:
       - "3000:3000"
     depends_on:
       backend:
+        condition: service_healthy
+      postgres:
         condition: service_healthy
     healthcheck:
       test:
@@ -57,3 +66,4 @@ services:
 
 volumes:
   postgres_data:
+  audio_data:

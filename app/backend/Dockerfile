@@ -27,6 +27,8 @@ COPY --from=builder --chown=app:app /srv/.venv /srv/.venv
 COPY --from=builder --chown=app:app /srv/README.md /srv/README.md
 COPY --chown=app:app src ./src
 
+RUN mkdir -p /srv/data && chown app:app /srv/data
+
 USER app
 
 EXPOSE 8000

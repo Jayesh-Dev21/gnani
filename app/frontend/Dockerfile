@@ -10,7 +10,10 @@ FROM node:22-bookworm-slim AS builder
 
 WORKDIR /srv
 
-ENV NEXT_TELEMETRY_DISABLED=1
+ENV NEXT_TELEMETRY_DISABLED=1 \
+    NEXT_PUBLIC_API_URL=http://localhost:8000
+
+ARG NEXT_PUBLIC_API_URL
 
 COPY --from=deps /srv/node_modules ./node_modules
 COPY . .
