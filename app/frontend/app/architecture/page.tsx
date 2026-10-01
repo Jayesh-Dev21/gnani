@@ -1,5 +1,7 @@
 import Link from "next/link";
 
+import { ThemeToggle } from "@/components/theme-toggle";
+
 const SECTIONS = [
   {
     heading: "Upload to transcript",
@@ -38,7 +40,10 @@ export default function ArchitecturePage() {
         <Link className="text-sm font-medium tracking-tight" href="/">
           Audio Notes
         </Link>
-        <span className="micro">Architecture</span>
+        <div className="flex items-center gap-6">
+          <ThemeToggle />
+          <span className="micro">Architecture</span>
+        </div>
       </header>
 
       <main className="mx-auto w-full max-w-3xl flex-1 overflow-y-auto px-6 py-12">

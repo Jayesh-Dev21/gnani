@@ -6,6 +6,8 @@ import { useState } from "react";
 
 import { authClient } from "@/lib/auth-client";
 
+import { ThemeToggle } from "./theme-toggle";
+
 export function LoginForm() {
   const router = useRouter();
   const [email, setEmail] = useState("");
@@ -38,7 +40,10 @@ export function LoginForm() {
   return (
     <main className="flex flex-1 items-center justify-center px-6 py-16">
       <div className="w-full max-w-sm">
-        <p className="micro">Audio Notes</p>
+        <div className="flex items-center justify-between">
+          <p className="micro">Audio Notes</p>
+          <ThemeToggle />
+        </div>
         <h1 className="mt-3 text-2xl font-medium tracking-tight">
           {mode === "sign-up" ? "Create an account" : "Sign in"}
         </h1>

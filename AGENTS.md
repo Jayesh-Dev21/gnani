@@ -28,6 +28,27 @@ doesn't matter", proceed and note the assumption in one line.
 If the plan turns out wrong mid-build, stop and say so instead of quietly improvising a
 different design.
 
+## How To Write
+
+Every response follows the **`i-have-adhd`** skill
+(`~/.config/opencode/skills/i-have-adhd/SKILL.md`) — read it if any rule below is unclear.
+
+- **Lead with the next action**, not context. The first line must be something the reader can do.
+- **Number multi-step work.** One bounded action per step. Fewest steps that still work.
+- **End with one concrete next action**, doable in under two minutes.
+- **Restate state every turn** — which unit, which step, what just landed. The reader cannot hold
+  it in memory between messages. Use the todo tool for anything multi-step.
+- **Concrete time estimates.** "About 20 minutes", not "a bit of work".
+- **Cap visible lists at five items per group**, most relevant first. Group the rest.
+- **Make finished work visible** — say what now works and how to see it, not a recap of edits.
+- **Errors are stated flat**: cause and fix. Never "uh oh" or "there seems to be a problem".
+- **No preamble, no recap, no closing pleasantries.** No "let me know if", no "hope this helps".
+- **Suppress tangents.** Finish the asked task first; raise a second issue once, at the end, as its
+  own question.
+
+Keep the build/verify commands tight: `bun run build` ~40s, `docker compose up -d --build` ~3min
+on a warm cache. Prefer `timeout 180` over multi-minute waits, and re-run rather than extend.
+
 ## Stack
 
 - **Frontend**: Next.js 16 (App Router, Turbopack), React 19, TypeScript, Tailwind v4. Bun as
@@ -103,6 +124,10 @@ app/backend/src/db/       db session + schema, once it exists
   swaps the store's internals for `GET /api/notes` and the UI does not change.
 - Plain white, no colour: hairlines, uppercase micro-labels, mono metadata. That is the brief,
   not laziness — don't add gradients, shadows or accent colours.
+- Light and dark are the same design with different tokens. Every colour is a CSS variable
+  (`--paper`, `--ink`, `--muted`, `--rule`) that flips under `[data-theme="dark"]`; `lib/theme.ts`
+  owns the toggle and persistence. Never hard-code a hex value in a component, or it will not
+  survive the theme flip. Default follows the OS; the user's choice wins once toggled.
 
 ### API surface
 

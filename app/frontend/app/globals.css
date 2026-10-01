@@ -5,6 +5,25 @@
   --ink: #0b0b0c;
   --muted: #6f6f73;
   --rule: #e6e6e8;
+  color-scheme: light;
+}
+
+:root[data-theme="dark"] {
+  --paper: #0a0a0b;
+  --ink: #f1f1f2;
+  --muted: #8a8a90;
+  --rule: #26262a;
+  color-scheme: dark;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --paper: #0a0a0b;
+    --ink: #f1f1f2;
+    --muted: #8a8a90;
+    --rule: #26262a;
+    color-scheme: dark;
+  }
 }
 
 @theme inline {

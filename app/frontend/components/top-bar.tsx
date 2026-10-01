@@ -5,6 +5,8 @@ import { useRouter } from "next/navigation";
 
 import { authClient } from "@/lib/auth-client";
 
+import { ThemeToggle } from "./theme-toggle";
+
 export function TopBar({ email }: { email: string }) {
   const router = useRouter();
 
@@ -21,6 +23,7 @@ export function TopBar({ email }: { email: string }) {
         <span className="micro hidden sm:inline">upload · transcribe · read</span>
       </div>
       <nav className="flex items-center gap-6">
+        <ThemeToggle />
         <Link className="micro hover:text-ink" href="/notes">
           Saved
         </Link>
