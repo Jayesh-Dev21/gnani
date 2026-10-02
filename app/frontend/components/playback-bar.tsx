@@ -5,6 +5,8 @@ import { useEffect, useState } from "react";
 import type { Note } from "@/lib/api";
 import { fetchAudio } from "@/lib/api";
 
+import { AudioPlayer } from "./audio-player";
+
 export function PlaybackBar({ note }: { note: Note }) {
   const [src, setSrc] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -46,13 +48,7 @@ export function PlaybackBar({ note }: { note: Note }) {
         {error ? (
           <p className="text-[13px] text-muted">Audio unavailable: {error}</p>
         ) : src ? (
-          <audio
-            aria-label={`Audio for ${note.title}`}
-            className="min-w-0 flex-1"
-            controls
-            preload="metadata"
-            src={src}
-          />
+          <AudioPlayer label={`Audio for ${note.title}`} src={src} />
         ) : (
           <p className="micro">Loading audio</p>
         )}

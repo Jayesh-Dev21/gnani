@@ -53,3 +53,9 @@
 - `/architecture` rewritten to describe what is actually built: Better Auth with JWT verification
   through JWKS, per-user scoping and 404-instead-of-403, Postgres persistence, local-disk storage
   behind one module, the queue decision, and an explicit section on what is still stubbed.
+
+### UI
+
+- Replaced the native audio element with a custom player: play/pause, seek and volume sliders,
+  tabular mono timecode. Chromium paints its own control panel and will not blend it with the
+  page, so the controls are ours now and follow the theme in both light and dark.
