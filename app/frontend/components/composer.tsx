@@ -9,12 +9,14 @@ const MAX_UPLOAD_MB = 10;
 
 const LANGUAGES = [
   { value: "", label: "Detect (Hindi / English)" },
-  { value: "en-IN", label: "English" },
-  { value: "hi-IN", label: "Hindi" },
   { value: "bn-IN", label: "Bengali" },
+  { value: "en-IN", label: "English" },
+  { value: "gu-IN", label: "Gujarati", note: "not on Batch STT" },
+  { value: "hi-IN", label: "Hindi" },
   { value: "kn-IN", label: "Kannada" },
   { value: "ml-IN", label: "Malayalam" },
   { value: "mr-IN", label: "Marathi" },
+  { value: "pa-IN", label: "Punjabi", note: "not on Batch STT" },
   { value: "ta-IN", label: "Tamil" },
   { value: "te-IN", label: "Telugu" },
 ];
@@ -126,8 +128,14 @@ export function Composer({ onUploaded }: { onUploaded: (note: Note) => void }) {
               value={language}
             >
               {LANGUAGES.map((option) => (
-                <option key={option.value} value={option.value}>
+                <option
+                  disabled={Boolean(option.note)}
+                  key={option.value}
+                  title={option.note}
+                  value={option.value}
+                >
                   {option.label}
+                  {option.note ? ` (${option.note})` : ""}
                 </option>
               ))}
             </select>
