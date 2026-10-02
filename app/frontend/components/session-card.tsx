@@ -3,7 +3,7 @@
 import { useState } from "react";
 
 import type { Note } from "@/lib/api";
-import { deleteSession, downloadTranscript, renameSession } from "@/lib/notes";
+import { downloadTranscript, renameSession } from "@/lib/notes";
 
 import { AudioPlayer } from "./audio-player";
 
@@ -12,7 +12,13 @@ function formatBytes(bytes: number): string {
   return `${(bytes / 1024 / 1024).toFixed(1)}MB`;
 }
 
-export function SessionCard({ note }: { note: Note }) {
+export function SessionCard({
+  note,
+  onDelete,
+}: {
+  note: Note;
+  onDelete: (noteId: string) => void;
+}) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(note.title);
 
@@ -85,7 +91,7 @@ export function SessionCard({ note }: { note: Note }) {
         >
           Rename
         </button>
-        <button className="btn" onClick={() => deleteSession(note.id)} type="button">
+        <button className="btn" onClick={() => onDelete(note.id)} type="button">
           Delete
         </button>
       </div>
