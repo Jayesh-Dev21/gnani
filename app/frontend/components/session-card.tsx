@@ -1,9 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 
 import type { Note } from "@/lib/api";
-import { fetchAudio } from "@/lib/api";
 import { downloadTranscript } from "@/lib/notes";
 
 function formatBytes(bytes: number): string {
@@ -23,33 +22,6 @@ export function SessionCard({
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(note.title);
   const [busy, setBusy] = useState(false);
-  const [src, setSrc] = useState<string | null>(null);
-  const [audioError, setAudioError] = useState<string | null>(null);
-
-  const audioPath = note.audio_url;
-
-  useEffect(() => {
-    let objectUrl: string | null = null;
-    let cancelled = false;
-
-    void (async () => {
-      try {
-        const fetched = await fetchAudio(audioPath);
-        if (cancelled || !fetched) return;
-        objectUrl = fetched;
-        setSrc(fetched);
-      } catch (cause) {
-        if (!cancelled) {
-          setAudioError(cause instanceof Error ? cause.message : "Audio unavailable");
-        }
-      }
-    })();
-
-    return () => {
-      cancelled = true;
-      if (objectUrl) URL.revokeObjectURL(objectUrl);
-    };
-  }, [audioPath]);
 
   async function commitRename() {
     setEditing(false);
@@ -88,24 +60,6 @@ export function SessionCard({
         {note.filename} · {formatBytes(note.size_bytes)} · {note.language_code} ·{" "}
         {new Date(note.created_at).toLocaleString()}
       </p>
-
-      {audioError ? (
-        <p className="mt-4 text-[13px]" role="alert">
-          Audio unavailable: {audioError}
-        </p>
-      ) : src ? (
-        <div className="mt-4">
-          <audio
-            aria-label={`Audio for ${note.title}`}
-            className="w-full"
-            controls
-            preload="metadata"
-            src={src}
-          />
-        </div>
-      ) : (
-        <p className="micro mt-4">Loading audio</p>
-      )}
 
       <div className="mt-5 border-l-2 border-ink pl-4">
         <p className="micro">Transcript</p>

@@ -7,6 +7,7 @@ import type { Note } from "@/lib/api";
 import { useSessions } from "@/lib/notes";
 
 import { Composer } from "./composer";
+import { PlaybackBar } from "./playback-bar";
 import { SessionCard } from "./session-card";
 import { Sidebar } from "./sidebar";
 
@@ -39,7 +40,7 @@ export function Chat() {
 
   function startNew() {
     setSelectedId(null);
-    document.getElementById("composer-file")?.click();
+    setNote(null);
   }
 
   return (
@@ -90,12 +91,16 @@ export function Chat() {
           </div>
         </div>
 
-        <Composer
-          onUploaded={async (created) => {
-            await refresh();
-            setSelectedId(created.id);
-          }}
-        />
+        {note ? (
+          <PlaybackBar note={note} />
+        ) : (
+          <Composer
+            onUploaded={async (created) => {
+              await refresh();
+              setSelectedId(created.id);
+            }}
+          />
+        )}
       </div>
     </div>
   );

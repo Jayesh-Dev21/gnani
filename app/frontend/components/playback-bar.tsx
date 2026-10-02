@@ -1,0 +1,62 @@
+"use client";
+
+import { useEffect, useState } from "react";
+
+import type { Note } from "@/lib/api";
+import { fetchAudio } from "@/lib/api";
+
+export function PlaybackBar({ note }: { note: Note }) {
+  const [src, setSrc] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const audioPath = note.audio_url;
+
+  useEffect(() => {
+    let objectUrl: string | null = null;
+    let cancelled = false;
+
+    void (async () => {
+      try {
+        const fetched = await fetchAudio(audioPath);
+        if (cancelled || !fetched) return;
+        objectUrl = fetched;
+        setSrc(fetched);
+      } catch (cause) {
+        if (!cancelled) {
+          setError(cause instanceof Error ? cause.message : "Audio unavailable");
+        }
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+    };
+  }, [audioPath]);
+
+  return (
+    <div className="border-t border-rule bg-paper px-6 py-3">
+      <div className="mx-auto flex max-w-3xl items-center gap-4">
+        <div className="w-48 min-w-0 shrink-0">
+          <p className="truncate text-[13px] font-medium">{note.title}</p>
+          <p className="nums mt-0.5 text-[11px] text-muted">
+            {note.status} · {note.language_code}
+          </p>
+        </div>
+
+        {error ? (
+          <p className="text-[13px] text-muted">Audio unavailable: {error}</p>
+        ) : src ? (
+          <audio
+            aria-label={`Audio for ${note.title}`}
+            className="min-w-0 flex-1"
+            controls
+            preload="metadata"
+            src={src}
+          />
+        ) : (
+          <p className="micro">Loading audio</p>
+        )}
+      </div>
+    </div>
+  );
+}

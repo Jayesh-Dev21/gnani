@@ -38,3 +38,10 @@
   `127.0.0.1` and LAN origins are accepted like `localhost`.
 - CORS origins, dev-auth guard (`ENABLE_DEV_AUTH` refuses to start under `ENV=production`),
   audio fetched with the session token so the player can use it.
+
+### UI
+
+- Theme toggle is now a sun/moon icon instead of LIGHT/DARK text.
+- "New recording" opens an empty dashboard: transcript area cleared, composer back in the tray.
+- The bottom tray doubles as the playback bar once a transcript is open — the upload controls are
+  useless there, so the tray shows the note title, status and the audio player instead.
