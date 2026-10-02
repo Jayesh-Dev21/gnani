@@ -1,5 +1,6 @@
 """Note persistence. Every query is scoped to the verified user id."""
 
+import math
 from uuid import UUID
 
 from fastapi import HTTPException, UploadFile, status
@@ -13,6 +14,10 @@ from src.db.models import Note, NoteStatus
 from src.queue import defer_transcription
 
 AUDIO_PATH = f"/api/notes/{{id}}/audio"
+
+# Batch STT accepts recordings of hours, so this is only a sanity bound on what a
+# browser will report, not a product limit.
+MAX_DURATION_SECONDS = 4 * 60 * 60
 
 
 def resolve_language_code(language_code: str | None) -> str:
@@ -76,8 +81,22 @@ def to_note(note: Note, *, include_content: bool = True) -> dict:
     return payload
 
 
+def sanitise_duration(duration_seconds: float | None) -> float | None:
+    """Trust the browser's measurement of duration, but not blindly."""
+    if duration_seconds is None or not math.isfinite(duration_seconds):
+        return None
+    if duration_seconds <= 0 or duration_seconds > MAX_DURATION_SECONDS:
+        return None
+    return round(duration_seconds, 2)
+
+
 async def create(
-    session: AsyncSession, user_id: str, file: UploadFile, title: str | None, language: str | None
+    session: AsyncSession,
+    user_id: str,
+    file: UploadFile,
+    title: str | None,
+    language: str | None,
+    duration_seconds: float | None = None,
 ) -> dict:
     note = Note(
         user_id=user_id,
@@ -86,6 +105,7 @@ async def create(
         content_type=file.content_type or "",
         size_bytes=0,
         language_code=resolve_language_code(language),
+        duration_seconds=sanitise_duration(duration_seconds),
         status=NoteStatus.QUEUED,
     )
     session.add(note)

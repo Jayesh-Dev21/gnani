@@ -37,8 +37,9 @@ async def create_note(
     file: Annotated[UploadFile, File()],
     title: Annotated[str | None, Form()] = None,
     language_code: Annotated[str | None, Form()] = None,
+    duration_seconds: Annotated[float | None, Form()] = None,
 ) -> dict:
-    return await service.create(session, user.id, file, title, language_code)
+    return await service.create(session, user.id, file, title, language_code, duration_seconds)
 
 
 @router.get("")

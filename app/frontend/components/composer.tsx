@@ -4,11 +4,14 @@ import { useRef, useState } from "react";
 
 import { uploadNote } from "@/lib/api";
 import type { Note } from "@/lib/api";
+import { formatDuration, readAudioDuration } from "@/lib/audio-meta";
 
 const MAX_UPLOAD_MB = 10;
 
+const DEFAULT_LANGUAGE = "en-IN";
+
 const LANGUAGES = [
-  { value: "", label: "Detect (Hindi / English)" },
+  { value: DEFAULT_LANGUAGE, label: "English (default)" },
   { value: "bn-IN", label: "Bengali" },
   { value: "en-IN", label: "English" },
   { value: "gu-IN", label: "Gujarati", note: "not on Batch STT" },
@@ -25,7 +28,8 @@ export function Composer({ onUploaded }: { onUploaded: (note: Note) => void | Pr
   const inputRef = useRef<HTMLInputElement>(null);
   const [file, setFile] = useState<File | null>(null);
   const [title, setTitle] = useState("");
-  const [language, setLanguage] = useState("");
+  const [language, setLanguage] = useState(DEFAULT_LANGUAGE);
+  const [duration, setDuration] = useState<number | null>(null);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -33,6 +37,7 @@ export function Composer({ onUploaded }: { onUploaded: (note: Note) => void | Pr
     setError(null);
     if (!selected) {
       setFile(null);
+      setDuration(null);
       return;
     }
     if (!selected.type.startsWith("audio/")) {
@@ -45,6 +50,10 @@ export function Composer({ onUploaded }: { onUploaded: (note: Note) => void | Pr
     }
     setFile(selected);
     if (!title) setTitle(selected.name.replace(/\.[^.]+$/, ""));
+    // Read the duration here rather than after the upload: it is free locally and
+    // it tells the user how long a recording is before anything is sent anywhere.
+    setDuration(null);
+    void readAudioDuration(selected).then(setDuration);
   }
 
   async function submit(event: React.FormEvent) {
@@ -54,10 +63,16 @@ export function Composer({ onUploaded }: { onUploaded: (note: Note) => void | Pr
     setPending(true);
     setError(null);
     try {
-      const note = await uploadNote(file, title || undefined, language || undefined);
+      const note = await uploadNote(
+        file,
+        title || undefined,
+        language || undefined,
+        duration,
+      );
       onUploaded(note);
       setFile(null);
       setTitle("");
+      setDuration(null);
       if (inputRef.current) inputRef.current.value = "";
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Upload failed");
@@ -148,7 +163,11 @@ export function Composer({ onUploaded }: { onUploaded: (note: Note) => void | Pr
 
         <p className="micro">
           {file
-            ? `${file.name} · ${(file.size / 1024 / 1024).toFixed(2)}MB`
+            ? [
+                file.name,
+                `${(file.size / 1024 / 1024).toFixed(2)}MB`,
+                formatDuration(duration) || "reading duration…",
+              ].join(" · ")
             : `Up to ${MAX_UPLOAD_MB}MB · wav mp3 m4a flac ogg webm`}
         </p>
       </div>

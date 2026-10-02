@@ -88,11 +88,15 @@ export async function uploadNote(
   file: File,
   title: string | undefined,
   languageCode: string | undefined,
+  durationSeconds?: number | null,
 ): Promise<Note> {
   const form = new FormData();
   form.append("file", file);
   if (title) form.append("title", title);
   if (languageCode) form.append("language_code", languageCode);
+  if (durationSeconds != null) {
+    form.append("duration_seconds", durationSeconds.toFixed(3));
+  }
 
   let response: Response;
   try {

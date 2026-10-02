@@ -3,6 +3,7 @@
 import { useState } from "react";
 
 import type { Note } from "@/lib/api";
+import { formatDuration } from "@/lib/audio-meta";
 import { downloadTranscript } from "@/lib/notes";
 
 function formatBytes(bytes: number): string {
@@ -58,10 +59,32 @@ export function SessionCard({
         <span className="micro">{note.status}</span>
       </div>
 
-      <p className="nums mt-1 text-[11px] text-muted">
-        {note.filename} · {formatBytes(note.size_bytes)} · {note.language_code} ·{" "}
-        {new Date(note.created_at).toLocaleString()}
-      </p>
+      <div className="mt-1 flex items-center gap-2">
+        <p className="nums text-[11px] text-muted">
+          {note.filename} · {formatBytes(note.size_bytes)}
+          {note.duration_seconds ? ` · ${formatDuration(note.duration_seconds)}` : ""} ·{" "}
+          {note.language_code} · {new Date(note.created_at).toLocaleString()}
+        </p>
+        {note.status === "failed" ? (
+          <button
+            aria-label="Retry transcription"
+            className="shrink-0 text-[13px] leading-none text-muted hover:text-ink"
+            disabled={busy}
+            onClick={async () => {
+              setBusy(true);
+              try {
+                await onRetry(note.id);
+              } finally {
+                setBusy(false);
+              }
+            }}
+            title="Retry transcription"
+            type="button"
+          >
+            ↻
+          </button>
+        ) : null}
+      </div>
 
       <div className="mt-5 border-l-2 border-ink pl-4">
         <p className="micro">Transcript</p>
@@ -111,23 +134,6 @@ export function SessionCard({
         >
           Rename
         </button>
-        {note.status === "failed" ? (
-          <button
-            className="btn"
-            disabled={busy}
-            onClick={async () => {
-              setBusy(true);
-              try {
-                await onRetry(note.id);
-              } finally {
-                setBusy(false);
-              }
-            }}
-            type="button"
-          >
-            Retry
-          </button>
-        ) : null}
         <button className="btn" disabled={busy} onClick={() => onDelete(note.id)} type="button">
           Delete
         </button>

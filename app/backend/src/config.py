@@ -36,7 +36,7 @@ BATCH_LANGUAGE_CODES = tuple(
     code for code, _ in LANGUAGES if code not in UNSUPPORTED_BY_BATCH
 )
 
-DEFAULT_LANGUAGE_CODE = "hi-IN,en-IN"
+DEFAULT_LANGUAGE_CODE = "en-IN"
 
 
 class Settings(BaseSettings):

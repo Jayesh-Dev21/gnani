@@ -110,3 +110,18 @@
   `transcribing`, re-reads the open note when its status changes, shows what each
   in-flight state means, and offers Retry on a failed note with the provider's own
   message instead of an error code.
+
+### Changes
+
+- Duration is now read in the browser the moment a file is picked, using an
+  object URL and a metadata-only `<audio>` read (`lib/audio-meta.ts`), and sent
+  with the upload. The note therefore knows how long the recording is before
+  transcription finishes, instead of only after Gnani answers. The server
+  sanitises the value (finite, positive, under four hours) and the worker still
+  overwrites it with the provider's own figure when the transcript arrives.
+- English is the default language, on both sides: the composer's select starts
+  on `en-IN` and `DEFAULT_LANGUAGE_CODE` is `en-IN` rather than a Hindi-first
+  list. The duration is shown in the composer's file line and in a note's
+  details.
+- A failed note's retry affordance is now a `↻` glyph beside its details, and the
+  duplicate Retry button in the action row is gone.
