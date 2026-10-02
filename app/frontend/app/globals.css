@@ -109,6 +109,13 @@ body {
   color: var(--ink);
 }
 
+.btn-lg {
+  height: 44px;
+  padding: 0 28px;
+  font-size: 12px;
+  letter-spacing: 0.14em;
+}
+
 .reveal {
   animation: reveal 0.18s ease-out both;
 }

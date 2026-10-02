@@ -39,6 +39,10 @@ class Settings(BaseSettings):
         "postgresql+psycopg://audio_notes:audio_notes@localhost:5432/audio_notes"
     )
     max_upload_bytes: int = 10 * 1024 * 1024
+    cors_origins: tuple[str, ...] = (
+        "http://localhost:3000",
+        "http://127.0.0.1:3000",
+    )
     audio_content_types: tuple[str, ...] = AUDIO_CONTENT_TYPES
     batch_language_codes: tuple[str, ...] = BATCH_LANGUAGE_CODES
     default_language_code: str = DEFAULT_LANGUAGE_CODE

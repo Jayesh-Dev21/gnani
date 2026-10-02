@@ -133,7 +133,7 @@ export function Composer({ onUploaded }: { onUploaded: (note: Note) => void }) {
             </select>
           </div>
 
-          <button className="btn btn-primary" disabled={!file || pending} type="submit">
+          <button className="btn btn-primary btn-lg" disabled={!file || pending} type="submit">
             {pending ? "Uploading" : "Transcribe"}
           </button>
         </div>

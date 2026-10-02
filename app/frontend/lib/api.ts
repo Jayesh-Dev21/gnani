@@ -40,7 +40,15 @@ export async function uploadNote(
   if (title) form.append("title", title);
   if (languageCode) form.append("language_code", languageCode);
 
-  const response = await fetch(`${API_URL}/api/notes`, { method: "POST", body: form });
+  let response: Response;
+  try {
+    response = await fetch(`${API_URL}/api/notes`, { method: "POST", body: form });
+  } catch {
+    throw new Error(
+      `Could not reach the API at ${API_URL}. Check that the backend is running and allows this origin.`,
+    );
+  }
+
   if (!response.ok) throw new Error(await readError(response));
   return (await response.json()) as Note;
 }
