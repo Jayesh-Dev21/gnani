@@ -116,6 +116,26 @@ body {
   letter-spacing: 0.14em;
 }
 
+audio {
+  background: transparent;
+  color-scheme: inherit;
+  height: 36px;
+}
+
+audio::-webkit-media-controls,
+audio::-webkit-media-controls-panel,
+audio::-webkit-media-controls-enclosure {
+  background-color: transparent;
+}
+
+audio::-webkit-media-controls-current-time-display,
+audio::-webkit-media-controls-time-remaining-display {
+  color: var(--muted);
+  font-family: var(--font-geist-mono), ui-monospace, monospace;
+  font-variant-numeric: tabular-nums;
+  font-size: 11px;
+}
+
 .reveal {
   animation: reveal 0.18s ease-out both;
 }
@@ -132,7 +152,27 @@ body {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .reveal {
+  audio {
+  background: transparent;
+  color-scheme: inherit;
+  height: 36px;
+}
+
+audio::-webkit-media-controls,
+audio::-webkit-media-controls-panel,
+audio::-webkit-media-controls-enclosure {
+  background-color: transparent;
+}
+
+audio::-webkit-media-controls-current-time-display,
+audio::-webkit-media-controls-time-remaining-display {
+  color: var(--muted);
+  font-family: var(--font-geist-mono), ui-monospace, monospace;
+  font-variant-numeric: tabular-nums;
+  font-size: 11px;
+}
+
+.reveal {
     animation: none;
   }
 }

@@ -45,3 +45,11 @@
 - "New recording" opens an empty dashboard: transcript area cleared, composer back in the tray.
 - The bottom tray doubles as the playback bar once a transcript is open — the upload controls are
   useless there, so the tray shows the note title, status and the audio player instead.
+
+### UI
+
+- The audio player blends into the page: transparent background, no grey box, tabular mono
+  timecodes in both themes.
+- `/architecture` rewritten to describe what is actually built: Better Auth with JWT verification
+  through JWKS, per-user scoping and 404-instead-of-403, Postgres persistence, local-disk storage
+  behind one module, the queue decision, and an explicit section on what is still stubbed.
