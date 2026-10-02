@@ -1,6 +1,6 @@
 import { authClient } from "./auth-client";
 
-export type NoteStatus = "queued" | "transcribing" | "ready" | "failed";
+export type NoteStatus = "queued" | "transcribing" | "ready" | "summarising" | "failed";
 
 export type NoteError = { code: string; message: string } | null;
 

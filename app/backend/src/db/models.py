@@ -13,6 +13,7 @@ class NoteStatus(StrEnum):
     QUEUED = "queued"
     TRANSCRIBING = "transcribing"
     READY = "ready"
+    SUMMARISING = "summarising"
     FAILED = "failed"
 
 

@@ -38,6 +38,12 @@ BATCH_LANGUAGE_CODES = tuple(
 
 DEFAULT_LANGUAGE_CODE = "en-IN"
 
+# Fallback order for summarisation. Groq's llama-3.x models were decommissioned on
+# free and developer tiers in August 2026, so the chain is built from what their
+# model list actually serves today: a flagship, a different vendor so a single
+# vendor's outage is survivable, then the cheapest fast model.
+DEFAULT_GROQ_MODELS = ("openai/gpt-oss-120b", "qwen/qwen3.8-27b", "openai/gpt-oss-20b")
+
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
@@ -47,6 +53,7 @@ class Settings(BaseSettings):
 
     env: str = "development"
     gnani_api_key: str
+    groq_api_key: str
     gnani_model: str = "gnani-prisma-v2.5"
     gnani_base_url: str = "https://api.vachana.ai"
     stt_rest_timeout_seconds: float = 90
@@ -55,9 +62,18 @@ class Settings(BaseSettings):
     data_dir: Path = Path("data")
     auth_jwks_url: str = "http://localhost:3000/api/auth/jwks"
     auth_audience: str = "http://localhost:3000"
+    groq_base_url: str = "https://api.groq.com/openai/v1"
+    llm_timeout_seconds: float = 90
+    llm_max_output_tokens: int = 700
+    # Chunk size in characters. Indic scripts average well under four characters
+    # per token, so this stays inside a conservative prompt budget per chunk.
+    llm_chunk_chars: int = 24000
+    # A model that keeps failing is skipped for this long, so one dead model costs
+    # a note one skipped attempt instead of three failed calls per note.
+    llm_model_cooldown_seconds: float = 300
     worker_lease_seconds: float = 120
     worker_heartbeat_seconds: float = 30
-    worker_queues: str = "transcription"
+    worker_queues: str = "transcription,summarisation"
     enable_dev_auth: bool = False
     dev_user_id: str = "dev-user"
     database_url: str = (
@@ -71,6 +87,9 @@ class Settings(BaseSettings):
     audio_content_types: tuple[str, ...] = AUDIO_CONTENT_TYPES
     batch_language_codes: tuple[str, ...] = BATCH_LANGUAGE_CODES
     default_language_code: str = DEFAULT_LANGUAGE_CODE
+    # A plain comma separated string, because that is how it reads in a .env file.
+    groq_models: str = ",".join(DEFAULT_GROQ_MODELS)
+    llm_reasoning_effort: str = "low"
 
     @field_validator("gnani_api_key")
     @classmethod
@@ -81,6 +100,32 @@ class Settings(BaseSettings):
                 "from the Gnani APIs dashboard."
             )
         return value
+
+    @field_validator("groq_api_key")
+    @classmethod
+    def groq_key_present(cls, value: str) -> str:
+        if not value.strip():
+            raise ValueError(
+                "GROQ_API_KEY is not set. Copy .env.example to .env and paste the key "
+                "from the GroqCloud console at https://console.groq.com/keys."
+            )
+        return value
+
+    @field_validator("groq_models")
+    @classmethod
+    def groq_chain_not_empty(cls, value: str) -> str:
+        """A chain with nothing in it cannot fail over, so refuse it at startup."""
+        if not [model for model in value.split(",") if model.strip()]:
+            raise ValueError(
+                "GROQ_MODELS is empty. List the models to try in order, for example "
+                "openai/gpt-oss-120b,qwen/qwen3.8-27b,openai/gpt-oss-20b."
+            )
+        return value
+
+    @property
+    def groq_model_chain(self) -> tuple[str, ...]:
+        """The fallback chain, in the order models should be tried."""
+        return tuple(model.strip() for model in self.groq_models.split(",") if model.strip())
 
     @field_validator("database_url")
     @classmethod

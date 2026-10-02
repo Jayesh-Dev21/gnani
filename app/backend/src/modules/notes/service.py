@@ -11,7 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src import storage
 from src.config import LANGUAGES, UNSUPPORTED_BY_BATCH, settings
 from src.db.models import Note, NoteStatus
-from src.queue import defer_transcription
+from src.queue import defer_summarisation, defer_transcription
 
 AUDIO_PATH = f"/api/notes/{{id}}/audio"
 
@@ -181,9 +181,18 @@ async def retry(session: AsyncSession, user_id: str, note_id: UUID) -> dict:
     # the next attempt resumes that job instead of billing the same file twice.
     note.attempt_id = None
     note.lease_expires_at = None
+
+    # Retry the step that failed. A note with a transcript only needs its summary,
+    # so pressing Retry never pays for transcription twice.
+    resuming_summary = bool(note.transcript)
+    note.status = NoteStatus.SUMMARISING if resuming_summary else NoteStatus.QUEUED
+
     await session.commit()
     await session.refresh(note)
-    await defer_transcription(str(note.id), str(note.user_id))
+    if resuming_summary:
+        await defer_summarisation(str(note.id), str(note.user_id))
+    else:
+        await defer_transcription(str(note.id), str(note.user_id))
     return to_note(note)
 
 

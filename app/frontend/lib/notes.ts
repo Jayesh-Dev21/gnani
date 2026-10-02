@@ -26,7 +26,10 @@ export function useSessions() {
   // Transcription runs as a job, so the status field is the only source of
   // progress. Poll only while something is actually in flight.
   const inFlight = notes.some(
-    (note) => note.status === "queued" || note.status === "transcribing",
+    (note) =>
+      note.status === "queued" ||
+      note.status === "transcribing" ||
+      note.status === "summarising",
   );
 
   useEffect(() => {

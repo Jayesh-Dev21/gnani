@@ -16,7 +16,7 @@ from src.config import settings
 from src.db.models import Note
 from src.db.session import session_factory
 from src.modules.transcription import gnani
-from src.queue import QUEUE_TRANSCRIPTION, app
+from src.queue import QUEUE_TRANSCRIPTION, app, defer_summarisation
 
 log = logging.getLogger("transcription")
 
@@ -74,6 +74,7 @@ async def transcribe_note(note_id: str, user_id: str, attempt_id: str | None = N
             await _mark_ready(session, UUID(note_id), user_id, attempt, transcript)
 
         log.info("note=%s ready (%d chars)", note_id, len(transcript.text))
+        await defer_summarisation(note_id, user_id)
 
     except Exception as error:  # noqa: BLE001 - the user must be told what happened
         code = error.code if isinstance(error, gnani.GnaniError) else "transcription_failed"

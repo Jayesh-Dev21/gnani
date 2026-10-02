@@ -95,9 +95,15 @@ export function SessionCard({
 
       <div className="mt-5 border-l-2 border-rule pl-4">
         <p className="micro">Summary</p>
-        <p className="mt-2 text-[15px] leading-relaxed whitespace-pre-wrap text-muted">
-          {note.summary ?? "No summary yet."}
-        </p>
+        {note.summary ? (
+          <p className="mt-2 text-[15px] leading-relaxed whitespace-pre-wrap text-muted">
+            {note.summary}
+          </p>
+        ) : (
+          <p className="mt-2 text-[15px] text-muted">
+            {note.status === "summarising" ? "Writing the summary…" : "No summary yet."}
+          </p>
+        )}
       </div>
 
       {note.status === "queued" || note.status === "transcribing" ? (
@@ -105,6 +111,12 @@ export function SessionCard({
           {note.status === "queued"
             ? "Waiting for a worker to pick this up."
             : "Transcribing in the background. This can take a couple of minutes for long recordings."}
+        </p>
+      ) : null}
+
+      {note.status === "summarising" ? (
+        <p className="micro mt-4 normal-case tracking-normal">
+          Transcript is ready. Writing the summary.
         </p>
       ) : null}
 

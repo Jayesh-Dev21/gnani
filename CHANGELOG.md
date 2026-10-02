@@ -125,3 +125,26 @@
   details.
 - A failed note's retry affordance is now a `↻` glyph beside its details, and the
   duplicate Retry button in the action row is gone.
+
+### Features
+
+- Summarisation via GroqCloud, as its own queued job (`summarise_note`) rather than a chained
+  step, so a provider outage never disturbs a transcript that already succeeded and a summary can
+  be retried on its own. `summarising` joins the status set; the note passes through it and lands
+  back on `ready`. A summary failure leaves the transcript exactly as it was.
+- `src/modules/summarisation/llm.py` holds the fallback chain: models are tried in the order
+  `GROQ_MODELS` lists them (`openai/gpt-oss-120b` → `qwen/qwen3.8-27b` → `openai/gpt-oss-20b`).
+  429, 5xx, timeouts, transport errors and empty completions move to the next model; a 401/403/400
+  raises immediately with the provider's own message so a wrong key is not hidden behind two more
+  attempts. After two consecutive transient failures a model is benched for
+  `LLM_MODEL_COOLDOWN_SECONDS`, so an outage costs one note one skipped attempt rather than three
+  failed calls per note, and every model benched reports "temporarily unavailable" instead of
+  retrying into the same wall.
+- Long transcripts are summarised chunk by chunk on paragraph boundaries and the partial summaries
+  are reduced into one answer, so a multi-hour Batch recording is never truncated at the tail.
+  `reasoning_effort` is sent only to the `openai/gpt-oss` family, which documents it.
+- `POST /api/notes/{id}/retry` now re-runs the step that actually failed: a note that has a
+  transcript retries only its summary, so pressing Retry never pays for transcription twice.
+- Startup recovery understands `summarising` as well as `transcribing`, and `GROQ_API_KEY` is
+  required at startup for the same reason `GNANI_API_KEY` is: a missing provider key is a
+  configuration failure, not a per-request surprise.

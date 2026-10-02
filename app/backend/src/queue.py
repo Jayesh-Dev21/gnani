@@ -14,6 +14,7 @@ app = procrastinate.App(
 )
 
 QUEUE_TRANSCRIPTION = "transcription"
+QUEUE_SUMMARISATION = "summarisation"
 
 
 async def defer_transcription(note_id: str, user_id: str) -> None:
@@ -25,3 +26,10 @@ async def defer_transcription(note_id: str, user_id: str) -> None:
     from src.modules.transcription.tasks import transcribe_note
 
     await transcribe_note.defer_async(note_id=note_id, user_id=user_id)
+
+
+async def defer_summarisation(note_id: str, user_id: str) -> None:
+    """Hand a transcribed note to the summarisation queue."""
+    from src.modules.summarisation.tasks import summarise_note
+
+    await summarise_note.defer_async(note_id=note_id, user_id=user_id)

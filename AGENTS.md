@@ -59,7 +59,7 @@ on a warm cache. Prefer `timeout 180` over multi-minute waits, and re-run rather
   a real bucket comes later behind the same interface.
 - **Auth**: Better Auth, running in Next.js. FastAPI is a resource server that verifies
   Better Auth sessions — it never owns passwords or sessions.
-- **Background work**: transcription runs as a job, not in the request. The queue is
+- **Background work**: transcription and summarisation run as jobs, not in requests. The queue is
   **Procrastinate on Postgres** (psycopg3, retries + task locks) with the worker as its own
   compose service running the same image. Not wired yet. No Redis, no Kafka.
 
@@ -91,9 +91,10 @@ it, the backend reads it (`../../.env` in its settings chain), and `app/frontend
 copy for `bun dev` because Next only looks in its own directory. `app/backend/.env.example`
 documents every backend setting.
 
-Two keys are required and a missing or blank value stops the stack rather than failing later:
-`BETTER_AUTH_SECRET` (compose refuses to start) and `GNANI_API_KEY` (compose refuses to start, and
-`Settings` raises at import). Keep real keys out of the committed `.env.example` files.
+Three keys are required and a missing or blank value stops the stack rather than failing later:
+`BETTER_AUTH_SECRET` (compose refuses to start), `GNANI_API_KEY` and `GROQ_API_KEY` (compose refuses
+to start, and `Settings` raises at import). Keep real keys out of the committed `.env.example`
+files.
 
 `docker compose up -d` runs migrations for you: the `migrate` service applies Better Auth's
 tables before the frontend starts, and the backend command runs `alembic upgrade head`.
@@ -168,14 +169,19 @@ transcript, summary, error, audio_url, created_at, updated_at`. `error` is `null
    inserts a `notes` row with status `queued`, returns `201` with the note. Nothing waits on ASR.
 2. A worker picks up `queued` notes, writes `transcribing` **before** starting, runs the Gnani
    Batch STT flow below, writes the transcript, then writes `ready`.
-3. The client polls `GET /api/notes/{id}` (or `GET /api/notes` for the list view) and renders from
+3. A `summarise_note` job picks the note up, writes `summarising`, runs the Groq chain, then writes
+   the summary and `ready` again. A summary failure marks the note `failed` but leaves the
+   transcript untouched.
+4. The client polls `GET /api/notes/{id}` (or `GET /api/notes` for the list view) and renders from
    the `status` field. Polling is the source of progress truth — no websockets, no SSE.
 
-**Status values are a closed set**: `queued | transcribing | ready | failed`. `summarising` is not
-in the set yet — it arrives with the LLM step, and until then `summary` is always `null`. Never
-fake a summary; an empty summary is honest, an invented one is not. Every state transition is
-written to the DB before the work starts, so a crashed worker leaves a truthful state rather than a
-stuck spinner.
+**Status values are a closed set**: `queued | transcribing | ready | summarising | failed`. `ready`
+means the transcript is good; the summary arrives afterwards in its own job and the note passes
+through `summarising` on the way. A summary failure leaves the transcript exactly as it was and
+fails only the summary step — `Retry` then re-runs that step alone, never transcription again.
+Never fake a summary; an empty summary is honest, an invented one is not. Every state transition
+is written to the DB before the work starts, so a crashed worker leaves a truthful state rather
+than a stuck spinner.
 
 ### Gnani ASR (source of truth: <https://docs.gnani.ai/api/STTBatch/Introduction>)
 
@@ -214,6 +220,30 @@ three comma-separated codes for per-file identification (first is the fallback).
   multipart path** — which is fine for the 2-minute recordings this task targets. Once a real
   bucket exists, prod switches to `source.type: "cloud_storage"` with a signed URL. One code path
   per environment behind the storage interface, not one compromise path for both.
+
+### Summarisation (GroqCloud, with a fallback chain)
+
+`src/modules/summarisation/llm.py` calls Groq's OpenAI-compatible endpoint
+(`https://api.groq.com/openai/v1/chat/completions`) over a **chain** of models, tried in the order
+`GROQ_MODELS` lists them. The default chain is `openai/gpt-oss-120b`, `qwen/qwen3.8-27b`,
+`openai/gpt-oss-20b`: flagship, then a different vendor so one vendor's outage is survivable, then
+the cheapest fast model. **Check that list against Groq's live model page before changing it** —
+their `llama-3.x` ids were decommissioned on free and developer tiers in Aug 2026, so a stale id
+fails at runtime, not at startup.
+
+The rules that make the chain worth having:
+
+- **Transient failures fall through; misconfiguration does not.** 429, 5xx, a timeout, a transport
+  error or an empty completion moves to the next model. A 401/403/400 raises immediately with the
+  provider's own message, because retrying a wrong key three times only hides the bug.
+- **A failing model is benched, not retried.** After two consecutive transient failures a model is
+  skipped for `LLM_MODEL_COOLDOWN_SECONDS`, so an outage costs one note one skipped attempt instead
+  of three failed calls per note. State is per worker process and resets on restart.
+- **Long transcripts are reduced, never truncated.** The transcript is split on paragraph
+  boundaries into `LLM_CHUNK_CHARS` chunks, each is summarised through the same chain, and the
+  partial summaries are reduced into one answer. The end of a long recording is never dropped.
+- `reasoning_effort` is only sent to the `openai/gpt-oss` family, which documents it; sending it
+  elsewhere risks a 400 that would be reported as a configuration error.
 
 ### Failure handling
 

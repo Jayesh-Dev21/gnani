@@ -11,9 +11,10 @@ import logging
 from src.config import settings
 from src.modules.transcription.recovery import recover_on_startup
 
-# Imported for the side effect: this is what registers transcribe_note with the
-# queue. Without it the worker starts cleanly and then fails every job.
-from src.modules.transcription import tasks as _tasks  # noqa: F401
+# Imported for the side effect: this is what registers the tasks with the queue.
+# Without it the worker starts cleanly and then fails every job.
+from src.modules.summarisation import tasks as _summarisation_tasks  # noqa: F401
+from src.modules.transcription import tasks as _transcription_tasks  # noqa: F401
 from src.queue import app
 
 logging.basicConfig(
