@@ -59,3 +59,9 @@
 - Replaced the native audio element with a custom player: play/pause, seek and volume sliders,
   tabular mono timecode. Chromium paints its own control panel and will not blend it with the
   page, so the controls are ours now and follow the theme in both light and dark.
+
+### UI
+
+- The volume slider is hidden until you hover the volume region (or tab into it), so the tray
+  shows just the speaker icon at rest. Tailwind gates `hover:` behind `@media (hover: hover)`,
+  which is why the expansion only appears on pointer devices.

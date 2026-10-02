@@ -149,28 +149,30 @@ export function AudioPlayer({ src, label }: { src: string; label: string }) {
         value={currentTime}
       />
 
-      <button
-        aria-label={muted ? "Unmute" : "Mute"}
-        className="flex h-8 w-6 shrink-0 items-center justify-center text-muted hover:text-ink"
-        onClick={toggleMute}
-        type="button"
-      >
-        <VolumeIcon level={level} />
-      </button>
+      <div className="group/volume flex shrink-0 items-center gap-2">
+        <button
+          aria-label={muted ? "Unmute" : "Mute"}
+          className="flex h-8 w-6 shrink-0 items-center justify-center text-muted hover:text-ink"
+          onClick={toggleMute}
+          type="button"
+        >
+          <VolumeIcon level={level} />
+        </button>
 
-      <input
-        aria-label="Volume"
-        className="w-20 shrink-0 accent-ink"
-        max={1}
-        min={0}
-        onChange={(event) => changeVolume(Number(event.target.value))}
-        step={0.01}
-        style={{
-          background: `linear-gradient(to right, var(--ink) ${volume * 100}%, var(--rule) ${volume * 100}%)`,
-        }}
-        type="range"
-        value={muted ? 0 : volume}
-      />
+        <input
+          aria-label="Volume"
+          className="w-0 shrink-0 accent-ink opacity-0 transition-[width,opacity] duration-200 ease-out group-focus-within/volume:w-20 group-focus-within/volume:opacity-100 group-hover/volume:w-20 group-hover/volume:opacity-100"
+          max={1}
+          min={0}
+          onChange={(event) => changeVolume(Number(event.target.value))}
+          step={0.01}
+          style={{
+            background: `linear-gradient(to right, var(--ink) ${volume * 100}%, var(--rule) ${volume * 100}%)`,
+          }}
+          type="range"
+          value={muted ? 0 : volume}
+        />
+      </div>
     </div>
   );
 }
