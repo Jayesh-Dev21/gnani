@@ -66,11 +66,12 @@ on a warm cache. Prefer `timeout 180` over multi-minute waits, and re-run rather
 ## Dev Commands
 
 ```bash
-docker compose up -d --build        # postgres + backend + frontend (the real dev loop)
+docker compose up -d postgres backend   # postgres + backend only
+docker compose up -d                   # adds the frontend, which also binds :3000
 docker compose logs -f backend
 
 cd app/frontend
-bun dev                             # watch
+bun dev                             # watch, serves :3000 (stop the compose frontend first)
 bun run build                       # typecheck + production build
 bun run lint                        # eslint
 bun run start:standalone            # run the production build locally
