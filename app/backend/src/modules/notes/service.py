@@ -10,6 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src import storage
 from src.config import LANGUAGES, UNSUPPORTED_BY_BATCH, settings
 from src.db.models import Note, NoteStatus
+from src.queue import defer_transcription
 
 AUDIO_PATH = f"/api/notes/{{id}}/audio"
 
@@ -104,6 +105,7 @@ async def create(
 
     await session.commit()
     await session.refresh(note)
+    await defer_transcription(str(note.id), str(note.user_id))
     return to_note(note)
 
 
@@ -145,16 +147,23 @@ async def rename(
 
 async def retry(session: AsyncSession, user_id: str, note_id: UUID) -> dict:
     note = await get_for_user(session, user_id, note_id)
-    if note.status is not NoteStatus.FAILED:
+    # queued is retryable too: a note whose job died before it was claimed stays
+    # queued forever otherwise, and the user is the only one who can ask again.
+    if note.status not in (NoteStatus.FAILED, NoteStatus.QUEUED):
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
-            detail=f"Only failed notes can be retried, this one is {note.status.value}",
+            detail=f"Only failed or queued notes can be retried, this one is {note.status.value}",
         )
     note.status = NoteStatus.QUEUED
     note.error_code = None
     note.error_message = None
+    # provider_job_id survives on purpose: if Gnani already accepted this audio,
+    # the next attempt resumes that job instead of billing the same file twice.
+    note.attempt_id = None
+    note.lease_expires_at = None
     await session.commit()
     await session.refresh(note)
+    await defer_transcription(str(note.id), str(note.user_id))
     return to_note(note)
 
 

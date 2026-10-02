@@ -124,3 +124,6 @@ export const renameNote = (id: string, title: string) =>
 
 export const deleteNote = (id: string) =>
   request<void>(`/api/notes/${id}`, { method: "DELETE" });
+
+export const retryNote = (id: string) =>
+  request<Note>(`/api/notes/${id}/retry`, { method: "POST" });

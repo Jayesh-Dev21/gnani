@@ -1,3 +1,5 @@
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI, Request, status
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
@@ -7,8 +9,21 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 from src.config import settings
 from src.db.models import Base  # noqa: F401  (registers tables for Alembic)
 from src.modules.notes.router import router as notes_router
+from src.queue import app as queue
 
-app = FastAPI(title="Audio Notes API", version="0.1.0")
+
+@asynccontextmanager
+async def lifespan(_: FastAPI):
+    # Deferring a job needs the queue's connection pool. Opening it once here
+    # keeps a single pool for the life of the API.
+    await queue.open_async()
+    try:
+        yield
+    finally:
+        await queue.close_async()
+
+
+app = FastAPI(title="Audio Notes API", version="0.1.0", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,

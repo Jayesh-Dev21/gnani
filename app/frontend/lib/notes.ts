@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 
-import { deleteNote, listNotes, renameNote } from "./api";
+import { deleteNote, listNotes, renameNote, retryNote } from "./api";
 import type { Note, NoteSummary } from "./api";
 
 export function useSessions() {
@@ -23,6 +23,18 @@ export function useSessions() {
     void refresh();
   }, [refresh]);
 
+  // Transcription runs as a job, so the status field is the only source of
+  // progress. Poll only while something is actually in flight.
+  const inFlight = notes.some(
+    (note) => note.status === "queued" || note.status === "transcribing",
+  );
+
+  useEffect(() => {
+    if (!inFlight) return;
+    const timer = setInterval(() => void refresh(), 3000);
+    return () => clearInterval(timer);
+  }, [inFlight, refresh]);
+
   return {
     notes,
     error,
@@ -33,6 +45,10 @@ export function useSessions() {
     },
     remove: async (id: string) => {
       await deleteNote(id);
+      await refresh();
+    },
+    retry: async (id: string) => {
+      await retryNote(id);
       await refresh();
     },
   };

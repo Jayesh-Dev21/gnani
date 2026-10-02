@@ -83,3 +83,30 @@
   stage carrying bun, `node_modules`, `drizzle.config.ts`, the schema and the migration folder, so
   `docker compose up -d` applies Better Auth's tables on a clean machine instead of failing with
   `Cannot find module '/srv/bun'`.
+
+### Features
+
+- Transcription now runs as a queued job instead of inside the upload request.
+  `POST /api/notes` writes a `queued` note and returns; a `worker` service
+  (same image, `python -m src.worker`) claims it, writes `transcribing`, runs
+  Gnani, then writes `ready` or `failed`. Procrastinate on Postgres is the queue,
+  so there is no second service to operate. Queue schema is installed by the
+  backend's start command, migrations stay in Alembic.
+- Gnani integration in `src/modules/transcription/gnani.py`: try the synchronous
+  `POST /stt/v3` endpoint, escalate to Batch STT when Gnani reports the audio is
+  over its 60 second cap, then poll at 30s, list completed files and download
+  `full_transcript`. A 429 from polling, `/start`, or the file listing is waited
+  out rather than reported as a failure, and a reattached job found in `CREATED`
+  is started, since creating a job does not start it.
+- No automatic retries, because a retry after a crash would re-send audio Gnani
+  has already billed. Instead every attempt takes a lease on the note
+  (`attempt_id`, `lease_expires_at`) and records the provider job it created
+  (`provider_job_id`, `provider_submitted_at`). On worker start, notes with an
+  expired lease go back to `queued` and are re-deferred with the provider job id
+  intact, so the next attempt resumes the same Gnani job instead of paying twice.
+  `POST /api/notes/{id}/retry` now accepts a `queued` note too, which is the only
+  way to rescue a note whose job died before it was claimed.
+- The UI polls the note list every 3 seconds while any note is `queued` or
+  `transcribing`, re-reads the open note when its status changes, shows what each
+  in-flight state means, and offers Retry on a failed note with the provider's own
+  message instead of an error code.

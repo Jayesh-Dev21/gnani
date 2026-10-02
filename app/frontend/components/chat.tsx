@@ -12,7 +12,7 @@ import { SessionCard } from "./session-card";
 import { Sidebar } from "./sidebar";
 
 export function Chat() {
-  const { notes, error, refresh, rename, remove } = useSessions();
+  const { notes, error, refresh, rename, remove, retry } = useSessions();
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [note, setNote] = useState<Note | null>(null);
   const endRef = useRef<HTMLDivElement>(null);
@@ -30,9 +30,17 @@ export function Chat() {
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- loading a note is an external system read
+    if (!targetId) setNote(null);
+  }, [targetId]);
+
+  // The list polls while a note is in flight; re-read the open note when its
+  // status moves so the transcript and any error arrive without a second timer.
+  const targetStatus = target?.status ?? null;
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- a status change is an external system read
     if (targetId) void openNote(targetId);
-    else setNote(null);
-  }, [targetId, openNote]);
+  }, [targetId, targetStatus, openNote]);
 
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
@@ -73,6 +81,7 @@ export function Chat() {
                   setNote(null);
                 }}
                 onRename={rename}
+                onRetry={retry}
               />
             ) : (
               !error && (

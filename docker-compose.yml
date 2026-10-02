@@ -24,8 +24,16 @@ services:
       context: ./app/backend
     image: gnani-backend
     restart: unless-stopped
-    command: ["sh", "-c", "alembic upgrade head && uvicorn src.main:app --host 0.0.0.0 --port 8000 --proxy-headers --forwarded-allow-ips '*'"]
+    command:
+      - sh
+      - -c
+      - >-
+        alembic upgrade head &&
+        procrastinate schema --apply &&
+        uvicorn src.main:app --host 0.0.0.0 --port 8000 --proxy-headers --forwarded-allow-ips '*'
     environment:
+      PYTHONPATH: /srv
+      PROCRASTINATE_APP: src.queue.app
       DATABASE_URL: postgresql+asyncpg://audio_notes:audio_notes@postgres:5432/audio_notes
       DATA_DIR: /srv/data
       AUTH_JWKS_URL: http://frontend:3000/api/auth/jwks
@@ -33,12 +41,40 @@ services:
       GNANI_API_KEY: ${GNANI_API_KEY:?set GNANI_API_KEY in .env}
       GNANI_MODEL: ${GNANI_MODEL:-gnani-prisma-v2.5}
       STT_REST_TIMEOUT_SECONDS: ${STT_REST_TIMEOUT_SECONDS:-90}
+      STT_POLL_INTERVAL_SECONDS: ${STT_POLL_INTERVAL_SECONDS:-15}
+      STT_BATCH_DEADLINE_SECONDS: ${STT_BATCH_DEADLINE_SECONDS:-900}
+      WORKER_LEASE_SECONDS: ${WORKER_LEASE_SECONDS:-120}
+      WORKER_HEARTBEAT_SECONDS: ${WORKER_HEARTBEAT_SECONDS:-30}
     ports:
       - "8000:8000"
     volumes:
       - audio_data:/srv/data
     depends_on:
       postgres:
+        condition: service_healthy
+
+  worker:
+    build:
+      context: ./app/backend
+    image: gnani-backend
+    restart: unless-stopped
+    command: ["python", "-m", "src.worker"]
+    environment:
+      PYTHONPATH: /srv
+      DATABASE_URL: postgresql+asyncpg://audio_notes:audio_notes@postgres:5432/audio_notes
+      DATA_DIR: /srv/data
+      AUTH_JWKS_URL: http://frontend:3000/api/auth/jwks
+      AUTH_AUDIENCE: ${BETTER_AUTH_URL:-http://localhost:3000}
+      GNANI_API_KEY: ${GNANI_API_KEY:?set GNANI_API_KEY in .env}
+      GNANI_MODEL: ${GNANI_MODEL:-gnani-prisma-v2.5}
+      STT_POLL_INTERVAL_SECONDS: ${STT_POLL_INTERVAL_SECONDS:-15}
+      STT_BATCH_DEADLINE_SECONDS: ${STT_BATCH_DEADLINE_SECONDS:-900}
+      WORKER_LEASE_SECONDS: ${WORKER_LEASE_SECONDS:-120}
+      WORKER_HEARTBEAT_SECONDS: ${WORKER_HEARTBEAT_SECONDS:-30}
+    volumes:
+      - audio_data:/srv/data
+    depends_on:
+      backend:
         condition: service_healthy
 
   migrate:

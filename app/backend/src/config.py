@@ -48,10 +48,16 @@ class Settings(BaseSettings):
     env: str = "development"
     gnani_api_key: str
     gnani_model: str = "gnani-prisma-v2.5"
+    gnani_base_url: str = "https://api.vachana.ai"
     stt_rest_timeout_seconds: float = 90
+    stt_poll_interval_seconds: float = 30
+    stt_batch_deadline_seconds: float = 900
     data_dir: Path = Path("data")
     auth_jwks_url: str = "http://localhost:3000/api/auth/jwks"
     auth_audience: str = "http://localhost:3000"
+    worker_lease_seconds: float = 120
+    worker_heartbeat_seconds: float = 30
+    worker_queues: str = "transcription"
     enable_dev_auth: bool = False
     dev_user_id: str = "dev-user"
     database_url: str = (
@@ -92,6 +98,11 @@ postgresql://. This service needs the async driver."""
                 "ENABLE_DEV_AUTH cannot be enabled when ENV=production"
             )
         return self
+
+    @property
+    def sync_database_url(self) -> str:
+        """Procrastinate speaks psycopg3; SQLAlchemy speaks asyncpg. One URL, two drivers."""
+        return self.database_url.replace("+asyncpg", "")
 
     @property
     def uploads_dir(self) -> Path:

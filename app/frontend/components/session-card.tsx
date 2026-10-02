@@ -14,10 +14,12 @@ export function SessionCard({
   note,
   onDelete,
   onRename,
+  onRetry,
 }: {
   note: Note;
   onDelete: (noteId: string) => void | Promise<void>;
   onRename: (noteId: string, title: string) => void | Promise<void>;
+  onRetry: (noteId: string) => void | Promise<void>;
 }) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(note.title);
@@ -75,9 +77,17 @@ export function SessionCard({
         </p>
       </div>
 
+      {note.status === "queued" || note.status === "transcribing" ? (
+        <p className="micro mt-4 normal-case tracking-normal">
+          {note.status === "queued"
+            ? "Waiting for a worker to pick this up."
+            : "Transcribing in the background. This can take a couple of minutes for long recordings."}
+        </p>
+      ) : null}
+
       {note.error ? (
         <p className="mt-4 text-[13px]" role="alert">
-          {note.error.code}: {note.error.message}
+          {note.error.message}
         </p>
       ) : null}
 
@@ -101,6 +111,23 @@ export function SessionCard({
         >
           Rename
         </button>
+        {note.status === "failed" ? (
+          <button
+            className="btn"
+            disabled={busy}
+            onClick={async () => {
+              setBusy(true);
+              try {
+                await onRetry(note.id);
+              } finally {
+                setBusy(false);
+              }
+            }}
+            type="button"
+          >
+            Retry
+          </button>
+        ) : null}
         <button className="btn" disabled={busy} onClick={() => onDelete(note.id)} type="button">
           Delete
         </button>
