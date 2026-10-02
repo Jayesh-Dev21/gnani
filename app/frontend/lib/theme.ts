@@ -34,10 +34,3 @@ export function useTheme(): { theme: Theme; toggle: () => void } {
   const theme = useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
   return { theme, toggle: () => apply(theme === "dark" ? "light" : "dark") };
 }
-
-export function restoreTheme(): void {
-  const stored = window.localStorage.getItem(STORAGE_KEY);
-  if (stored === "dark" || stored === "light") {
-    document.documentElement.dataset.theme = stored;
-  }
-}
