@@ -67,7 +67,7 @@ on a warm cache. Prefer `timeout 180` over multi-minute waits, and re-run rather
 
 ```bash
 docker compose up -d postgres backend   # postgres + backend only
-docker compose up -d                   # adds the frontend, which also binds :3000
+docker compose up -d                   # adds migrate + the frontend, which also binds :3000
 docker compose logs -f backend
 
 cd app/frontend
@@ -86,9 +86,17 @@ uv run uvicorn src.main:app --reload --port 8000
 uv run python -c "import src.main"  # import smoke check
 ```
 
-Env lives in two places, both gitignored, both from `.env.example`: the repo-root `.env` is read
-by `docker compose`, and `app/frontend/.env.local` is read by `bun dev`. `BETTER_AUTH_SECRET` must
-be a real secret — compose refuses to start without it.
+Env has **one** source of truth: the repo-root `.env`, copied from `.env.example`. Compose reads
+it, the backend reads it (`../../.env` in its settings chain), and `app/frontend/.env.local` is a
+copy for `bun dev` because Next only looks in its own directory. `app/backend/.env.example`
+documents every backend setting.
+
+Two keys are required and a missing or blank value stops the stack rather than failing later:
+`BETTER_AUTH_SECRET` (compose refuses to start) and `GNANI_API_KEY` (compose refuses to start, and
+`Settings` raises at import). Keep real keys out of the committed `.env.example` files.
+
+`docker compose up -d` runs migrations for you: the `migrate` service applies Better Auth's
+tables before the frontend starts, and the backend command runs `alembic upgrade head`.
 
 **Before every commit**: `bun run build` (frontend, includes tsc) + `bun run lint`, and the
 backend must import cleanly. Testing is explicitly out of scope for now — no test scaffolding,

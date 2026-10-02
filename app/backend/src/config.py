@@ -1,7 +1,7 @@
 from functools import lru_cache
 from pathlib import Path
 
-from pydantic import model_validator
+from pydantic import field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 AUDIO_CONTENT_TYPES = (
@@ -40,9 +40,15 @@ DEFAULT_LANGUAGE_CODE = "hi-IN,en-IN"
 
 
 class Settings(BaseSettings):
-    model_config = SettingsConfigDict(env_file=".env", extra="ignore")
+    model_config = SettingsConfigDict(
+        env_file=("../../.env", ".env"),
+        extra="ignore",
+    )
 
     env: str = "development"
+    gnani_api_key: str
+    gnani_model: str = "gnani-prisma-v2.5"
+    stt_rest_timeout_seconds: float = 90
     data_dir: Path = Path("data")
     auth_jwks_url: str = "http://localhost:3000/api/auth/jwks"
     auth_audience: str = "http://localhost:3000"
@@ -59,6 +65,25 @@ class Settings(BaseSettings):
     audio_content_types: tuple[str, ...] = AUDIO_CONTENT_TYPES
     batch_language_codes: tuple[str, ...] = BATCH_LANGUAGE_CODES
     default_language_code: str = DEFAULT_LANGUAGE_CODE
+
+    @field_validator("gnani_api_key")
+    @classmethod
+    def gnani_key_present(cls, value: str) -> str:
+        if not value.strip():
+            raise ValueError(
+                "GNANI_API_KEY is not set. Copy .env.example to .env and paste the key "
+                "from the Gnani APIs dashboard."
+            )
+        return value
+
+    @field_validator("database_url")
+    @classmethod
+    def use_asyncpg(cls, value: str) -> str:
+        """DATABASE_URL is shared with the frontend, which speaks plain
+postgresql://. This service needs the async driver."""
+        if value.startswith("postgresql://"):
+            return value.replace("postgresql://", "postgresql+asyncpg://", 1)
+        return value
 
     @model_validator(mode="after")
     def refuse_dev_auth_in_production(self) -> "Settings":

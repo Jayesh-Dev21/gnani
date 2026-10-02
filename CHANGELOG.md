@@ -65,3 +65,13 @@
 - The volume slider is hidden until you hover the volume region (or tab into it), so the tray
   shows just the speaker icon at rest. Tailwind gates `hover:` behind `@media (hover: hover)`,
   which is why the expansion only appears on pointer devices.
+
+### Configuration
+
+- `GNANI_API_KEY` (required), `GNANI_MODEL` and `STT_REST_TIMEOUT_SECONDS` placeholders in
+  `.env.example`; the backend refuses to start when the key is blank.
+- `app/backend/.env.example` documents every backend setting, including the `AUTH_JWKS_URL` that
+  must point at the `frontend` service inside compose and the audience that must match
+  `BETTER_AUTH_URL`.
+- Compose gained a `migrate` service so Better Auth's tables are applied automatically, and the
+  backend derives the asyncpg driver from the shared `DATABASE_URL`.
