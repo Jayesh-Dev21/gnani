@@ -148,3 +148,31 @@
 - Startup recovery understands `summarising` as well as `transcribing`, and `GROQ_API_KEY` is
   required at startup for the same reason `GNANI_API_KEY` is: a missing provider key is a
   configuration failure, not a per-request surprise.
+
+### Features
+
+- Cloudflare R2 as the production audio backend, behind the existing storage
+  interface: `STORAGE_BACKEND=local` keeps writing under `DATA_DIR` and
+  `STORAGE_BACKEND=r2` uses the bucket's S3-compatible API over `aioboto3`. An
+  upload is spooled to a temporary file first, so the size limit is still enforced
+  while the bytes arrive and the bucket gets a file to send instead of a buffer.
+  Switching backends changes no other code.
+- The R2 bucket is private. `audio_url` becomes a short-lived presigned GET URL
+  (one hour, matching Gnani's own link lifetime), the browser hands that straight
+  to the `<audio>` element instead of proxying bytes through the API, and the
+  authenticated `/api/notes/{id}/audio` route answers with a 307 to a signed URL
+  so anything holding the old path keeps working. A leaked URL now expires rather
+  than staying a permanent public file.
+- Batch STT switches to `source: {type: "cloud_storage"}` when audio lives in R2,
+  so Gnani fetches the object itself and the 10MB per-file multipart cap stops
+  applying. The synchronous endpoint still needs real bytes, so that path downloads
+  to a temporary file first, and the file is released before the job starts
+  polling.
+- Object metadata no longer lives in a `meta.json` sidecar. The database already
+  had filename, content type and size, and a sidecar could not work for a bucket
+  anyway, so the audio route reads the note row and the sidecar is gone.
+- A failed note keeps its transcript when only the summary failed, and the reload
+  glyph beside a note's details is offered whenever there is something to
+  regenerate: a failed step, or a ready note whose summary never arrived. Its
+  label follows the step, "Regenerate summary" once a transcript exists and
+  "Retry transcription" before that.

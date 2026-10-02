@@ -106,20 +106,46 @@ async def transcribe_rest(path: Path, language_code: str) -> Transcript:
     return Transcript(text=text)
 
 
-async def create_batch_job(path: Path, language_code: str) -> str:
-    """Submit a Batch job. Development sends the bytes directly, which Gnani caps at 10MB."""
-    config = {
+async def create_batch_job(
+    note_id: str, filename: str, language_code: str, local_path: Path | None = None
+) -> str:
+    """Submit a Batch job.
+
+    Development sends the bytes directly, which Gnani caps at 10MB per file. In
+    production the audio is already in object storage, so Gnani is handed a signed
+    URL to fetch and no size limit applies.
+    """
+    from src import storage
+
+    config: dict = {
         "model": settings.gnani_model,
         "language_code": language_code,
         "mode": "transcribe",
         "with_diarization": False,
     }
+
     async with _client(120) as client:
-        with path.open("rb") as audio:
+        if storage.using_r2():
+            source = await storage.presigned_url(note_id, filename)
+            config["source"] = {
+                "type": "cloud_storage",
+                "url": source,
+                "original_path": filename,
+            }
             response = await client.post(
-                BATCH_JOBS_PATH,
-                data={"config": _json_dumps(config)},
-                files={"files": (path.name, audio)},
+                BATCH_JOBS_PATH, data={"config": _json_dumps(config)}
+            )
+        elif local_path is not None:
+            with local_path.open("rb") as audio:
+                response = await client.post(
+                    BATCH_JOBS_PATH,
+                    data={"config": _json_dumps(config)},
+                    files={"files": (filename, audio)},
+                )
+        else:
+            raise GnaniError(
+                "batch_no_source",
+                "No audio is available to send to the batch job.",
             )
 
     body = _json(response)

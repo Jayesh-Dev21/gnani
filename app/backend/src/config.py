@@ -62,6 +62,15 @@ class Settings(BaseSettings):
     data_dir: Path = Path("data")
     auth_jwks_url: str = "http://localhost:3000/api/auth/jwks"
     auth_audience: str = "http://localhost:3000"
+    # local | r2. Object storage in production, disk in development.
+    storage_backend: str = "local"
+    r2_account_id: str = ""
+    r2_access_key_id: str = ""
+    r2_secret_access_key: str = ""
+    r2_bucket: str = "gnani-bucket"
+    # Long enough for the browser to start playback and for Gnani to fetch a batch
+    # source. Gnani's own transcript links expire after an hour, so this matches.
+    r2_presign_expiry_seconds: int = 3600
     groq_base_url: str = "https://api.groq.com/openai/v1"
     llm_timeout_seconds: float = 90
     llm_max_output_tokens: int = 700
@@ -100,6 +109,35 @@ class Settings(BaseSettings):
                 "from the Gnani APIs dashboard."
             )
         return value
+
+    @model_validator(mode="after")
+    def r2_credentials_present(self) -> "Settings":
+        """The R2 backend is useless without credentials, and half of one is worse."""
+        if self.storage_backend == "local":
+            return self
+
+        if self.storage_backend != "r2":
+            raise ValueError(
+                f"STORAGE_BACKEND must be 'local' or 'r2', not {self.storage_backend!r}."
+            )
+
+        missing = [
+            name
+            for name, value in (
+                ("R2_ACCOUNT_ID", self.r2_account_id),
+                ("R2_ACCESS_KEY_ID", self.r2_access_key_id),
+                ("R2_SECRET_ACCESS_KEY", self.r2_secret_access_key),
+                ("R2_BUCKET", self.r2_bucket),
+            )
+            if not value.strip()
+        ]
+        if missing:
+            raise ValueError(
+                f"STORAGE_BACKEND=r2 requires {', '.join(missing)}. Create a bucket and an "
+                "R2 API token with Object Read & Write at "
+                "https://dash.cloudflare.com/?to=/:account/r2/api-tokens"
+            )
+        return self
 
     @field_validator("groq_api_key")
     @classmethod

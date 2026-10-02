@@ -31,7 +31,8 @@ export function PlaybackBar({ note }: { note: Note }) {
 
     return () => {
       cancelled = true;
-      if (objectUrl) URL.revokeObjectURL(objectUrl);
+      // Only a blob URL is ours to release; a signed storage URL is not.
+      if (objectUrl?.startsWith("blob:")) URL.revokeObjectURL(objectUrl);
     };
   }, [audioPath]);
 

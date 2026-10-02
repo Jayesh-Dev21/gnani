@@ -6,6 +6,16 @@ import type { Note } from "@/lib/api";
 import { formatDuration } from "@/lib/audio-meta";
 import { downloadTranscript } from "@/lib/notes";
 
+function canRegenerate(note: Note): boolean {
+  // Never while work is in flight: a second job would race the first one.
+  if (note.status === "queued" || note.status === "transcribing" || note.status === "summarising") {
+    return false;
+  }
+  // A ready note with no summary is exactly the case where the user is stuck
+  // waiting for something that never arrived, so it needs the glyph too.
+  return note.status === "failed" || !note.summary;
+}
+
 function formatBytes(bytes: number): string {
   if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)}KB`;
   return `${(bytes / 1024 / 1024).toFixed(1)}MB`;
@@ -22,6 +32,18 @@ export function SessionCard({
   onRename: (noteId: string, title: string) => void | Promise<void>;
   onRetry: (noteId: string) => void | Promise<void>;
 }) {
+  // What the reload glyph does depends on how far the note got: a note with a
+  // transcript only needs its summary re-run, anything earlier needs transcribing.
+  const regenerate = canRegenerate(note)
+    ? {
+        label: note.transcript
+          ? "Regenerate summary"
+          : note.status === "failed"
+            ? "Retry transcription"
+            : "Start transcription",
+      }
+    : null;
+
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(note.title);
   const [busy, setBusy] = useState(false);
@@ -65,9 +87,9 @@ export function SessionCard({
           {note.duration_seconds ? ` · ${formatDuration(note.duration_seconds)}` : ""} ·{" "}
           {note.language_code} · {new Date(note.created_at).toLocaleString()}
         </p>
-        {note.status === "failed" ? (
+        {regenerate ? (
           <button
-            aria-label="Retry transcription"
+            aria-label={regenerate.label}
             className="shrink-0 text-[13px] leading-none text-muted hover:text-ink"
             disabled={busy}
             onClick={async () => {
@@ -78,7 +100,7 @@ export function SessionCard({
                 setBusy(false);
               }
             }}
-            title="Retry transcription"
+            title={regenerate.label}
             type="button"
           >
             ↻

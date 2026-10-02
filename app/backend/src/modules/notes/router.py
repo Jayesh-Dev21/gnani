@@ -13,7 +13,9 @@ from fastapi import (
     Request,
     Response,
     UploadFile,
+    status,
 )
+from fastapi.responses import RedirectResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.concurrency import run_in_threadpool
 
@@ -53,7 +55,7 @@ async def list_notes(
 
 @router.get("/{note_id}")
 async def get_note(note_id: UUID, user: CurrentUserDep, session: SessionDep) -> dict:
-    return to_note(await service.get_for_user(session, user.id, note_id))
+    return await service.to_note(await service.get_for_user(session, user.id, note_id))
 
 
 @router.patch("/{note_id}")
@@ -82,12 +84,19 @@ async def retry_note(
 async def stream_note_audio(
     note_id: UUID, request: Request, user: CurrentUserDep, session: SessionDep
 ) -> Response:
-    await service.get_for_user(session, user.id, note_id)
-    stored = await run_in_threadpool(storage.read, str(note_id))
-    if stored is None:
+    note = await service.get_for_user(session, user.id, note_id)
+
+    if storage.using_r2():
+        # The object is private. Hand over a short-lived signed URL and let R2 serve
+        # the bytes, which it does with Range support intact.
+        url = await storage.presigned_url(str(note_id), note.filename)
+        return RedirectResponse(url=url, status_code=status.HTTP_307_TEMPORARY_REDIRECT)
+
+    path = storage.local_path(str(note_id), note.filename)
+    if not path.is_file():
         raise HTTPException(status_code=404, detail="Audio not found")
     return await run_in_threadpool(
-        stream_file, stored.audio_path, request.headers.get("range"), stored.content_type
+        stream_file, path, request.headers.get("range"), note.content_type
     )
 
 

@@ -7,6 +7,8 @@ rather than a spinner that never resolves.
 
 import asyncio
 import logging
+import tempfile
+from pathlib import Path
 from datetime import UTC, datetime, timedelta
 from uuid import UUID, uuid4
 
@@ -43,7 +45,7 @@ async def transcribe_note(note_id: str, user_id: str, attempt_id: str | None = N
         async with session_factory() as session:
             note = await _load(session, UUID(note_id), user_id)
             assert note is not None
-            audio = _audio_path(note)
+            filename = note.filename
             language_code = note.language_code
             submitted_job_id = note.provider_job_id
 
@@ -63,11 +65,11 @@ async def transcribe_note(note_id: str, user_id: str, attempt_id: str | None = N
                 log.info("job %s is dead, submitting a fresh one", submitted_job_id)
                 await _forget_provider_job(UUID(note_id), user_id, attempt)
                 transcript = await _transcribe(
-                    UUID(note_id), user_id, attempt, audio, language_code, heartbeat
+                    UUID(note_id), user_id, attempt, filename, language_code, heartbeat
                 )
         else:
             transcript = await _transcribe(
-                UUID(note_id), user_id, attempt, audio, language_code, heartbeat
+                UUID(note_id), user_id, attempt, filename, language_code, heartbeat
             )
 
         async with session_factory() as session:
@@ -90,13 +92,24 @@ async def transcribe_note(note_id: str, user_id: str, attempt_id: str | None = N
             await session.commit()
 
 
-async def _transcribe(note_id, user_id, attempt, audio, language_code: str, heartbeat) -> gnani.Transcript:
-    try:
-        return await gnani.transcribe_rest(audio, language_code)
-    except gnani.TooLongForRest:
-        log.info("escalating to batch: %s", audio.name)
+async def _transcribe(
+    note_id: UUID, user_id: str, attempt: UUID, filename: str, language_code: str, heartbeat
+) -> gnani.Transcript:
+    from src import storage
 
-    job_id = await gnani.create_batch_job(audio, language_code)
+    # The synchronous endpoint needs the bytes. On local disk that is a copy; on R2
+    # it is a download, and only because this path exists at all.
+    with tempfile.TemporaryDirectory(prefix=f"transcribe-{str(note_id)[:8]}-") as workdir:
+        audio = await storage.fetch_to(str(note_id), filename, Path(workdir) / filename)
+        try:
+            return await gnani.transcribe_rest(audio, language_code)
+        except gnani.TooLongForRest:
+            log.info("escalating to batch: %s", filename)
+
+        # Batch can fetch the object itself, so nothing is uploaded twice.
+        job_id = await gnani.create_batch_job(
+            str(note_id), filename, language_code, local_path=audio
+        )
     await _record_submission(note_id, user_id, attempt, job_id)
     await _start_when_allowed(job_id)
     return await gnani.wait_for_batch(job_id, settings.stt_batch_deadline_seconds, heartbeat)
@@ -112,15 +125,6 @@ async def _start_when_allowed(job_id: str) -> None:
             log.info("start throttled, retrying in %ss", settings.stt_poll_interval_seconds)
             await asyncio.sleep(settings.stt_poll_interval_seconds)
     raise gnani.GnaniError("batch_start_throttled", "Gnani is rate limiting job submissions.")
-
-
-def _audio_path(note: Note):
-    from src import storage
-
-    stored = storage.read(str(note.id))
-    if stored is None:
-        raise gnani.GnaniError("audio_missing", "The audio file for this note is no longer available.")
-    return stored.audio_path
 
 
 async def _record_submission(note_id, user_id, attempt, job_id: str) -> None:

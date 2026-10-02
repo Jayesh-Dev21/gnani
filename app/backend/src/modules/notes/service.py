@@ -5,7 +5,6 @@ from uuid import UUID
 
 from fastapi import HTTPException, UploadFile, status
 from sqlalchemy import select
-from starlette.concurrency import run_in_threadpool
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src import storage
@@ -14,6 +13,7 @@ from src.db.models import Note, NoteStatus
 from src.queue import defer_summarisation, defer_transcription
 
 AUDIO_PATH = f"/api/notes/{{id}}/audio"
+
 
 # Batch STT accepts recordings of hours, so this is only a sanity bound on what a
 # browser will report, not a product limit.
@@ -56,7 +56,7 @@ def resolve_language_code(language_code: str | None) -> str:
     return ",".join(codes)
 
 
-def to_note(note: Note, *, include_content: bool = True) -> dict:
+async def to_note(note: Note, *, include_content: bool = True) -> dict:
     payload = {
         "id": str(note.id),
         "title": note.title,
@@ -71,13 +71,16 @@ def to_note(note: Note, *, include_content: bool = True) -> dict:
             if note.error_code
             else None
         ),
-        "audio_url": AUDIO_PATH.format(id=note.id),
         "created_at": note.created_at.isoformat(),
         "updated_at": note.updated_at.isoformat(),
     }
     if include_content:
         payload["transcript"] = note.transcript
         payload["summary"] = note.summary
+        # Local disk is served through the authenticated route; a private bucket is
+        # served through a short-lived signed URL. Either way the browser gets one
+        # field to play from and never has to know which backend is in use.
+        payload["audio_url"] = await storage.playback_url(str(note.id), note.filename)
     return payload
 
 
@@ -112,7 +115,7 @@ async def create(
     await session.flush()
 
     try:
-        stored = await run_in_threadpool(storage.save, str(note.id), file)
+        stored = await storage.save(str(note.id), file)
     except Exception:
         await session.rollback()
         raise
@@ -126,7 +129,7 @@ async def create(
     await session.commit()
     await session.refresh(note)
     await defer_transcription(str(note.id), str(note.user_id))
-    return to_note(note)
+    return await to_note(note)
 
 
 async def list_for_user(session: AsyncSession, user_id: str, limit: int) -> list[dict]:
@@ -136,7 +139,7 @@ async def list_for_user(session: AsyncSession, user_id: str, limit: int) -> list
         .order_by(Note.created_at.desc(), Note.id.desc())
         .limit(limit)
     )
-    return [to_note(note, include_content=False) for note in result.scalars()]
+    return [await to_note(note, include_content=False) for note in result.scalars()]
 
 
 async def get_for_user(
@@ -162,7 +165,7 @@ async def rename(
     note.title = cleaned
     await session.commit()
     await session.refresh(note)
-    return to_note(note)
+    return await to_note(note)
 
 
 async def retry(session: AsyncSession, user_id: str, note_id: UUID) -> dict:
@@ -193,11 +196,11 @@ async def retry(session: AsyncSession, user_id: str, note_id: UUID) -> dict:
         await defer_summarisation(str(note.id), str(note.user_id))
     else:
         await defer_transcription(str(note.id), str(note.user_id))
-    return to_note(note)
+    return await to_note(note)
 
 
 async def delete(session: AsyncSession, user_id: str, note_id: UUID) -> None:
     note = await get_for_user(session, user_id, note_id)
     await session.delete(note)
     await session.commit()
-    storage.delete(str(note_id))
+    await storage.delete(str(note_id), note.filename)
