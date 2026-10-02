@@ -26,6 +26,8 @@ WORKDIR /srv
 COPY --from=builder --chown=app:app /srv/.venv /srv/.venv
 COPY --from=builder --chown=app:app /srv/README.md /srv/README.md
 COPY --chown=app:app src ./src
+COPY --chown=app:app alembic.ini ./
+COPY --chown=app:app migrations ./migrations
 
 RUN mkdir -p /srv/data && chown app:app /srv/data
 

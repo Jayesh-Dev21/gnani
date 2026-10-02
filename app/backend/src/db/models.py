@@ -1,0 +1,46 @@
+from datetime import datetime
+from enum import StrEnum
+from uuid import UUID, uuid4
+
+from sqlalchemy import DateTime, Enum, Float, Index, Integer, String, Text, func
+from sqlalchemy.dialects.postgresql import UUID as PgUUID
+from sqlalchemy.orm import Mapped, mapped_column
+
+from src.db.session import Base
+
+
+class NoteStatus(StrEnum):
+    QUEUED = "queued"
+    TRANSCRIBING = "transcribing"
+    READY = "ready"
+    FAILED = "failed"
+
+
+class Note(Base):
+    __tablename__ = "notes"
+    __table_args__ = (Index("ix_notes_user_created", "user_id", "created_at"),)
+
+    id: Mapped[UUID] = mapped_column(PgUUID(as_uuid=True), primary_key=True, default=uuid4)
+    user_id: Mapped[str] = mapped_column(String, nullable=False)
+    title: Mapped[str] = mapped_column(String, nullable=False)
+    filename: Mapped[str] = mapped_column(String, nullable=False)
+    content_type: Mapped[str] = mapped_column(String, nullable=False)
+    size_bytes: Mapped[int] = mapped_column(Integer, nullable=False)
+    duration_seconds: Mapped[float | None] = mapped_column(Float, nullable=True)
+    language_code: Mapped[str] = mapped_column(String, nullable=False)
+    status: Mapped[NoteStatus] = mapped_column(
+        Enum(NoteStatus, name="note_status", native_enum=False), nullable=False
+    )
+    transcript: Mapped[str | None] = mapped_column(Text, nullable=True)
+    summary: Mapped[str | None] = mapped_column(Text, nullable=True)
+    error_code: Mapped[str | None] = mapped_column(String, nullable=True)
+    error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        onupdate=func.now(),
+        nullable=False,
+    )

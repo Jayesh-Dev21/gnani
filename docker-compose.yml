@@ -24,8 +24,9 @@ services:
       context: ./app/backend
     image: gnani-backend
     restart: unless-stopped
+    command: ["sh", "-c", "alembic upgrade head && uvicorn src.main:app --host 0.0.0.0 --port 8000 --proxy-headers --forwarded-allow-ips '*'"]
     environment:
-      DATABASE_URL: postgresql+psycopg://audio_notes:audio_notes@postgres:5432/audio_notes
+      DATABASE_URL: postgresql+asyncpg://audio_notes:audio_notes@postgres:5432/audio_notes
     ports:
       - "8000:8000"
     volumes:

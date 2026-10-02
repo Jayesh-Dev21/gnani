@@ -1,6 +1,6 @@
 "use client";
 
-import type { Note } from "@/lib/api";
+import type { NoteSummary } from "@/lib/api";
 
 function formatDate(value: string): string {
   const date = new Date(value);
@@ -17,7 +17,7 @@ export function Sidebar({
   onSelect,
   onNew,
 }: {
-  notes: Note[];
+  notes: NoteSummary[];
   selectedId: string | null;
   onSelect: (id: string) => void;
   onNew: () => void;

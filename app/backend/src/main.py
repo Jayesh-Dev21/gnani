@@ -5,6 +5,7 @@ from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from src.config import settings
+from src.db.models import Base  # noqa: F401  (registers tables for Alembic)
 from src.modules.notes.router import router as notes_router
 
 app = FastAPI(title="Audio Notes API", version="0.1.0")

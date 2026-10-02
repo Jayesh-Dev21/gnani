@@ -1,9 +1,19 @@
 "use client";
 
-import { deleteSession, downloadTranscript, useSessions } from "@/lib/notes";
+import { useSessions } from "@/lib/notes";
 
 export function SavedNotes() {
-  const notes = useSessions();
+  const { notes, error } = useSessions();
+
+  if (error) {
+    return (
+      <main className="mx-auto w-full max-w-3xl flex-1 px-6 py-24">
+        <p className="text-[13px]" role="alert">
+          {error}
+        </p>
+      </main>
+    );
+  }
 
   if (notes.length === 0) {
     return (
@@ -32,22 +42,6 @@ export function SavedNotes() {
                 {new Date(note.created_at).toLocaleString()} · {note.status} ·{" "}
                 {note.language_code}
               </p>
-            </div>
-            <div className="flex gap-2">
-              <button
-                className="btn"
-                onClick={() => downloadTranscript(note)}
-                type="button"
-              >
-                Download
-              </button>
-              <button
-                className="btn"
-                onClick={() => deleteSession(note.id)}
-                type="button"
-              >
-                Delete
-              </button>
             </div>
           </li>
         ))}

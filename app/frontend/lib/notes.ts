@@ -1,78 +1,41 @@
 "use client";
 
-import { useSyncExternalStore } from "react";
+import { useCallback, useEffect, useState } from "react";
 
-import type { Note } from "./api";
+import { deleteNote, listNotes, renameNote } from "./api";
+import type { Note, NoteSummary } from "./api";
 
-const STORAGE_KEY = "audio-notes.sessions.v1";
-const EMPTY: Note[] = [];
+export function useSessions() {
+  const [notes, setNotes] = useState<NoteSummary[]>([]);
+  const [error, setError] = useState<string | null>(null);
 
-const listeners = new Set<() => void>();
-let cache: Note[] | null = null;
-
-function readStorage(): Note[] {
-  try {
-    const raw = window.localStorage.getItem(STORAGE_KEY);
-    const notes = raw ? (JSON.parse(raw) as Note[]) : [];
-    return notes.sort((a, b) => b.created_at.localeCompare(a.created_at));
-  } catch {
-    return EMPTY;
-  }
-}
-
-function getSnapshot(): Note[] {
-  cache ??= readStorage();
-  return cache;
-}
-
-function getServerSnapshot(): Note[] {
-  return EMPTY;
-}
-
-function subscribe(listener: () => void): () => void {
-  const onStorage = (event: StorageEvent) => {
-    if (event.key === STORAGE_KEY) {
-      cache = null;
-      emit();
+  const refresh = useCallback(async () => {
+    try {
+      setNotes(await listNotes());
+      setError(null);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Could not load notes");
     }
+  }, []);
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- initial load from the API is an external system read
+    void refresh();
+  }, [refresh]);
+
+  return {
+    notes,
+    error,
+    refresh,
+    rename: async (id: string, title: string) => {
+      await renameNote(id, title);
+      await refresh();
+    },
+    remove: async (id: string) => {
+      await deleteNote(id);
+      await refresh();
+    },
   };
-
-  listeners.add(listener);
-  window.addEventListener("storage", onStorage);
-  return () => {
-    listeners.delete(listener);
-    window.removeEventListener("storage", onStorage);
-  };
-}
-
-function emit(): void {
-  for (const listener of listeners) listener();
-}
-
-function commit(notes: Note[]): void {
-  window.localStorage.setItem(STORAGE_KEY, JSON.stringify(notes));
-  cache = notes;
-  emit();
-}
-
-export function useSessions(): Note[] {
-  return useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
-}
-
-export function addSession(note: Note): void {
-  commit([note, ...getSnapshot()]);
-}
-
-export function renameSession(noteId: string, title: string): void {
-  commit(
-    getSnapshot().map((note) =>
-      note.id === noteId ? { ...note, title: title.trim() || note.title } : note,
-    ),
-  );
-}
-
-export function deleteSession(noteId: string): void {
-  commit(getSnapshot().filter((note) => note.id !== noteId));
 }
 
 export function downloadTranscript(note: Note): void {

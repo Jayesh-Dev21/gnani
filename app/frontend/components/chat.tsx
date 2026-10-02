@@ -1,33 +1,45 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
-import { addSession, deleteSession, useSessions } from "@/lib/notes";
+import { getNote } from "@/lib/api";
+import type { Note } from "@/lib/api";
+import { useSessions } from "@/lib/notes";
 
 import { Composer } from "./composer";
 import { SessionCard } from "./session-card";
 import { Sidebar } from "./sidebar";
 
 export function Chat() {
-  const notes = useSessions();
+  const { notes, error, refresh, rename, remove } = useSessions();
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [note, setNote] = useState<Note | null>(null);
   const endRef = useRef<HTMLDivElement>(null);
 
-  const selected =
-    notes.find((note) => note.id === selectedId) ?? notes[0] ?? null;
+  const openNote = useCallback(async (id: string) => {
+    try {
+      setNote(await getNote(id));
+    } catch {
+      setNote(null);
+    }
+  }, []);
+
+  const target = notes.find((entry) => entry.id === selectedId) ?? notes[0] ?? null;
+  const targetId = target?.id ?? null;
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- loading a note is an external system read
+    if (targetId) void openNote(targetId);
+    else setNote(null);
+  }, [targetId, openNote]);
 
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
-  }, [selected?.id]);
+  }, [note?.id]);
 
   function startNew() {
     setSelectedId(null);
     document.getElementById("composer-file")?.click();
-  }
-
-  function remove(id: string) {
-    deleteSession(id);
-    setSelectedId(null);
   }
 
   return (
@@ -37,34 +49,51 @@ export function Chat() {
           notes={notes}
           onNew={startNew}
           onSelect={setSelectedId}
-          selectedId={selected?.id ?? null}
+          selectedId={target?.id ?? null}
         />
       </div>
 
       <div className="flex min-h-0 min-w-0 flex-1 flex-col">
         <div className="min-h-0 flex-1 overflow-y-auto px-6">
           <div className="mx-auto max-w-3xl">
-            {selected ? (
-              <SessionCard key={selected.id} note={selected} onDelete={remove} />
+            {error ? (
+              <p className="py-6 text-[13px]" role="alert">
+                {error}
+              </p>
+            ) : null}
+
+            {note ? (
+              <SessionCard
+                key={note.id}
+                note={note}
+                onDelete={async (id) => {
+                  await remove(id);
+                  setSelectedId(null);
+                  setNote(null);
+                }}
+                onRename={rename}
+              />
             ) : (
-              <div className="py-24">
-                <h1 className="max-w-md text-3xl leading-tight font-medium tracking-tight">
-                  Upload a recording, get a transcript you can read.
-                </h1>
-                <p className="micro mt-6 max-w-sm leading-relaxed normal-case tracking-normal">
-                  Audio stays on the server. Transcription runs in the background,
-                  so long recordings keep working while you wait.
-                </p>
-              </div>
+              !error && (
+                <div className="py-24">
+                  <h1 className="max-w-md text-3xl leading-tight font-medium tracking-tight">
+                    Upload a recording, get a transcript you can read.
+                  </h1>
+                  <p className="micro mt-6 max-w-sm leading-relaxed normal-case tracking-normal">
+                    Audio stays on the server. Transcription runs in the background,
+                    so long recordings keep working while you wait.
+                  </p>
+                </div>
+              )
             )}
             <div ref={endRef} />
           </div>
         </div>
 
         <Composer
-          onUploaded={(note) => {
-            addSession(note);
-            setSelectedId(note.id);
+          onUploaded={async (created) => {
+            await refresh();
+            setSelectedId(created.id);
           }}
         />
       </div>

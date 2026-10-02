@@ -20,3 +20,21 @@
   `DELETE /api/notes/{id}`, `POST /api/notes/{id}/retry`. Placeholder responses only: no
   persistence, no auth, no storage. Exists so the frontend can be built against the final
   response shapes.
+### Security
+
+- Notes are now owned by a user. FastAPI verifies the Better Auth session JWT against the
+  published JWKS (`X-Anonymous` style header guessing is no longer possible), scopes every query
+  by the verified user id, and returns `404` for another user's note or audio.
+- The saved-transcript list moved out of `localStorage` and into Postgres. Two accounts on one
+  machine no longer share transcripts.
+
+### API
+
+- Real persistence: `notes` table via SQLAlchemy 2.0 async and an Alembic migration, with
+  `user_id`, status, transcript, summary and error columns.
+- Added `PATCH /api/notes/{id}` for renaming, user-scoped `GET /api/notes`, and range streaming
+  for `GET /api/notes/{id}/audio`.
+- Better Auth gains the `jwt` plugin plus its `jwks` table, and `BETTER_AUTH_TRUSTED_ORIGINS` so
+  `127.0.0.1` and LAN origins are accepted like `localhost`.
+- CORS origins, dev-auth guard (`ENABLE_DEV_AUTH` refuses to start under `ENV=production`),
+  audio fetched with the session token so the player can use it.

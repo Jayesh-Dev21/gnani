@@ -21,7 +21,7 @@ const LANGUAGES = [
   { value: "te-IN", label: "Telugu" },
 ];
 
-export function Composer({ onUploaded }: { onUploaded: (note: Note) => void }) {
+export function Composer({ onUploaded }: { onUploaded: (note: Note) => void | Promise<void> }) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [file, setFile] = useState<File | null>(null);
   const [title, setTitle] = useState("");

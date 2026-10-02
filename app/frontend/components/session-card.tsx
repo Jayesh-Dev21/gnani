@@ -1,11 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import type { Note } from "@/lib/api";
-import { downloadTranscript, renameSession } from "@/lib/notes";
-
-import { AudioPlayer } from "./audio-player";
+import { fetchAudio } from "@/lib/api";
+import { downloadTranscript } from "@/lib/notes";
 
 function formatBytes(bytes: number): string {
   if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)}KB`;
@@ -15,16 +14,53 @@ function formatBytes(bytes: number): string {
 export function SessionCard({
   note,
   onDelete,
+  onRename,
 }: {
   note: Note;
-  onDelete: (noteId: string) => void;
+  onDelete: (noteId: string) => void | Promise<void>;
+  onRename: (noteId: string, title: string) => void | Promise<void>;
 }) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(note.title);
+  const [busy, setBusy] = useState(false);
+  const [src, setSrc] = useState<string | null>(null);
+  const [audioError, setAudioError] = useState<string | null>(null);
 
-  function commitRename() {
+  const audioPath = note.audio_url;
+
+  useEffect(() => {
+    let objectUrl: string | null = null;
+    let cancelled = false;
+
+    void (async () => {
+      try {
+        const fetched = await fetchAudio(audioPath);
+        if (cancelled || !fetched) return;
+        objectUrl = fetched;
+        setSrc(fetched);
+      } catch (cause) {
+        if (!cancelled) {
+          setAudioError(cause instanceof Error ? cause.message : "Audio unavailable");
+        }
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+    };
+  }, [audioPath]);
+
+  async function commitRename() {
     setEditing(false);
-    renameSession(note.id, draft);
+    if (draft.trim() && draft !== note.title) {
+      setBusy(true);
+      try {
+        await onRename(note.id, draft);
+      } finally {
+        setBusy(false);
+      }
+    }
   }
 
   return (
@@ -53,9 +89,23 @@ export function SessionCard({
         {new Date(note.created_at).toLocaleString()}
       </p>
 
-      <div className="mt-4">
-        <AudioPlayer note={note} />
-      </div>
+      {audioError ? (
+        <p className="mt-4 text-[13px]" role="alert">
+          Audio unavailable: {audioError}
+        </p>
+      ) : src ? (
+        <div className="mt-4">
+          <audio
+            aria-label={`Audio for ${note.title}`}
+            className="w-full"
+            controls
+            preload="metadata"
+            src={src}
+          />
+        </div>
+      ) : (
+        <p className="micro mt-4">Loading audio</p>
+      )}
 
       <div className="mt-5 border-l-2 border-ink pl-4">
         <p className="micro">Transcript</p>
@@ -78,11 +128,17 @@ export function SessionCard({
       ) : null}
 
       <div className="mt-6 flex gap-2">
-        <button className="btn" onClick={() => downloadTranscript(note)} type="button">
+        <button
+          className="btn"
+          disabled={busy}
+          onClick={() => downloadTranscript(note)}
+          type="button"
+        >
           Download
         </button>
         <button
           className="btn"
+          disabled={busy}
           onClick={() => {
             setDraft(note.title);
             setEditing(true);
@@ -91,7 +147,7 @@ export function SessionCard({
         >
           Rename
         </button>
-        <button className="btn" onClick={() => onDelete(note.id)} type="button">
+        <button className="btn" disabled={busy} onClick={() => onDelete(note.id)} type="button">
           Delete
         </button>
       </div>

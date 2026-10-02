@@ -1,5 +1,6 @@
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
+import { jwt } from "better-auth/plugins";
 import { drizzle } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
 
@@ -15,11 +16,20 @@ export const auth = betterAuth({
       session: authSchema.session,
       account: authSchema.account,
       verification: authSchema.verification,
+      jwks: authSchema.jwks,
     },
   }),
   emailAndPassword: {
     enabled: true,
   },
+  plugins: [jwt()],
   secret: process.env.BETTER_AUTH_SECRET,
   baseURL: process.env.BETTER_AUTH_URL,
+  trustedOrigins: (
+    process.env.BETTER_AUTH_TRUSTED_ORIGINS ??
+    "http://localhost:3000,http://127.0.0.1:3000"
+  )
+    .split(",")
+    .map((origin) => origin.trim())
+    .filter(Boolean),
 });

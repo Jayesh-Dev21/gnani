@@ -1,6 +1,7 @@
 from functools import lru_cache
 from pathlib import Path
 
+from pydantic import model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 AUDIO_CONTENT_TYPES = (
@@ -43,8 +44,12 @@ class Settings(BaseSettings):
 
     env: str = "development"
     data_dir: Path = Path("data")
+    auth_jwks_url: str = "http://localhost:3000/api/auth/jwks"
+    auth_audience: str = "http://localhost:3000"
+    enable_dev_auth: bool = False
+    dev_user_id: str = "dev-user"
     database_url: str = (
-        "postgresql+psycopg://audio_notes:audio_notes@localhost:5432/audio_notes"
+        "postgresql+asyncpg://audio_notes:audio_notes@localhost:5432/audio_notes"
     )
     max_upload_bytes: int = 10 * 1024 * 1024
     cors_origins: tuple[str, ...] = (
@@ -54,6 +59,14 @@ class Settings(BaseSettings):
     audio_content_types: tuple[str, ...] = AUDIO_CONTENT_TYPES
     batch_language_codes: tuple[str, ...] = BATCH_LANGUAGE_CODES
     default_language_code: str = DEFAULT_LANGUAGE_CODE
+
+    @model_validator(mode="after")
+    def refuse_dev_auth_in_production(self) -> "Settings":
+        if self.enable_dev_auth and self.env == "production":
+            raise ValueError(
+                "ENABLE_DEV_AUTH cannot be enabled when ENV=production"
+            )
+        return self
 
     @property
     def uploads_dir(self) -> Path:
