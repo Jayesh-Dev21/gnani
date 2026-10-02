@@ -6,6 +6,19 @@ COPY package.json bun.lock ./
 
 RUN bun install --frozen-lockfile
 
+# One-shot stage for applying Better Auth's Drizzle migrations. The runtime image
+# is node-only (standalone output), so drizzle-kit needs its own stage.
+FROM oven/bun:1.3.5 AS migrate
+
+WORKDIR /srv
+
+COPY --from=deps /srv/node_modules ./node_modules
+COPY package.json drizzle.config.ts ./
+COPY lib/db ./lib/db
+COPY drizzle ./drizzle
+
+CMD ["bun", "run", "db:migrate"]
+
 FROM node:22-bookworm-slim AS builder
 
 WORKDIR /srv

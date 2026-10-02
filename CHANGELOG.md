@@ -75,3 +75,11 @@
   `BETTER_AUTH_URL`.
 - Compose gained a `migrate` service so Better Auth's tables are applied automatically, and the
   backend derives the asyncpg driver from the shared `DATABASE_URL`.
+
+### Fixes
+
+- The `migrate` compose service ran the frontend's runtime image, which is node-only
+  (standalone output) and has no `bun` or `drizzle-kit`. It now builds from a dedicated `migrate`
+  stage carrying bun, `node_modules`, `drizzle.config.ts`, the schema and the migration folder, so
+  `docker compose up -d` applies Better Auth's tables on a clean machine instead of failing with
+  `Cannot find module '/srv/bun'`.
