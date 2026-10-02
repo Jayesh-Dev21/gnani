@@ -83,12 +83,23 @@ export function Composer({ onUploaded }: { onUploaded: (note: Note) => void }) {
             </label>
             <input
               ref={inputRef}
-              className="field file:mr-3 file:border-0 file:bg-transparent file:text-[11px] file:uppercase file:tracking-[0.12em]"
+              accept="audio/*"
+              className="peer sr-only"
               id="composer-file"
               onChange={(event) => pick(event.target.files?.[0] ?? null)}
               type="file"
-              accept="audio/*"
             />
+            <label
+              className="field peer-focus-visible:outline-2 peer-focus-visible:-outline-offset-1 peer-focus-visible:outline-ink flex cursor-pointer items-center justify-between gap-3"
+              htmlFor="composer-file"
+            >
+              <span className="shrink-0 text-[11px] tracking-[0.12em] uppercase">
+                Browse
+              </span>
+              <span className="truncate text-[13px] text-muted">
+                {file ? file.name : "No file selected"}
+              </span>
+            </label>
           </div>
 
           <div className="flex w-full flex-col gap-1 sm:w-48">
