@@ -106,7 +106,7 @@ async def _transcribe(
         except gnani.TooLongForRest:
             log.info("escalating to batch: %s", filename)
 
-        job_id = await gnani.create_batch_job(filename, language_code, str(audio))
+        job_id = await gnani.create_batch_job(filename, language_code, str(audio), heartbeat)
     await _record_submission(note_id, user_id, attempt, job_id)
     await _start_when_allowed(job_id)
     return await gnani.wait_for_batch(job_id, settings.stt_batch_deadline_seconds, heartbeat)

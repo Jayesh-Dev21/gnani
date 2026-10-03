@@ -106,8 +106,15 @@ async def transcribe_rest(path: Path, language_code: str) -> Transcript:
     return Transcript(text=text)
 
 
-async def create_batch_job(filename: str, language_code: str, audio_path: str) -> str:
-    """Submit a Batch job with the audio attached."""
+async def create_batch_job(
+    filename: str, language_code: str, audio_path: str, heartbeat=None
+) -> str:
+    """Submit a Batch job with the audio attached.
+
+    A 429/503 is Gnani asking for a slower pace, not a refusal: the submission
+    is retried with backoff, bounded so a worker slot is never held forever. A
+    throttled attempt creates no job, so retrying never double-submits.
+    """
 
     config: dict = {
         "model": settings.gnani_model,
@@ -121,13 +128,35 @@ async def create_batch_job(filename: str, language_code: str, audio_path: str) -
     # reachable as aws_s3 and the job is accepted, but Gnani then fails to fetch the
     # object (START_FAILED), so multipart stays the path that actually works.
     # The cost is Gnani's 10MB per-file cap, which the upload limit already matches.
-    async with _client(300) as client:
-        with Path(audio_path).open("rb") as audio:
-            response = await client.post(
-                BATCH_JOBS_PATH,
-                data={"config": _json_dumps(config)},
-                files={"files": (filename, audio)},
-            )
+    attempts = 5
+    last_status = 0
+    for attempt in range(1, attempts + 1):
+        async with _client(300) as client:
+            with Path(audio_path).open("rb") as audio:
+                response = await client.post(
+                    BATCH_JOBS_PATH,
+                    data={"config": _json_dumps(config)},
+                    files={"files": (filename, audio)},
+                )
+        if response.status_code not in (429, 503):
+            break
+        last_status = response.status_code
+        log.info(
+            "submission throttled (%s), waiting %ss (attempt %d/%d)",
+            last_status,
+            settings.stt_poll_interval_seconds,
+            attempt,
+            attempts,
+        )
+        if heartbeat is not None:
+            await heartbeat()
+        await asyncio.sleep(settings.stt_poll_interval_seconds)
+    else:
+        raise GnaniError(
+            "batch_submit_throttled",
+            "Gnani is rate limiting new submissions right now. Nothing was "
+            "submitted and you were not charged — wait a minute and press Retry.",
+        )
 
     body = _json(response)
     if response.status_code not in (200, 201):
