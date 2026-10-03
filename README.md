@@ -1,4 +1,4 @@
-## Gnani-SST
+## Gnani-STT
 ### Audio Notes Platform (Speech-To-Text)
 
 Upload audio, get a transcript via Gnani ASR, and an LLM summary via Groq.
