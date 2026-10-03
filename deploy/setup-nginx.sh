@@ -1,15 +1,15 @@
 #!/usr/bin/env bash
-# Sets up nginx in front of the compose stack on a fresh Ubuntu host.
+# Puts nginx (:80, plain HTTP) in front of the compose stack on Amazon Linux 2023.
 # Run as root:  sudo ./deploy/setup-nginx.sh
 #
-# TLS is terminated by Cloudflare, so this installs an origin certificate that only
-# Cloudflare trusts. For a directly reachable origin, swap in a certbot certificate
-# instead (see the note at the bottom).
+# This installs deploy/nginx-http.conf, the pre-TLS phase. The TLS design in
+# deploy/nginx.conf (443 + Cloudflare origin certificate) belongs to the later
+# Cloudflare phase and is not installed here.
 
 set -euo pipefail
 
-DOMAIN="${DOMAIN:-audio.example.com}"
-CERT_DIR="${CERT_DIR:-/etc/ssl/gnani}"
+CONF_SRC="$(dirname "$0")/nginx-http.conf"
+CONF_DST="/etc/nginx/conf.d/gnani.conf"
 
 if [[ $EUID -ne 0 ]]; then
     echo "Run this with sudo." >&2
@@ -17,45 +17,26 @@ if [[ $EUID -ne 0 ]]; then
 fi
 
 echo "==> Installing nginx"
-export DEBIAN_FRONTEND=noninteractive
-apt-get update -qq
-apt-get install -y -qq nginx
+dnf install -y nginx
 
 echo "==> Installing the site configuration"
-install -d -m 755 "$CERT_DIR"
-sed "s/audio\.example\.com/$DOMAIN/g" "$(dirname "$0")/nginx.conf" > /etc/nginx/sites-available/gnani
-ln -sf /etc/nginx/sites-available/gnani /etc/nginx/sites-enabled/gnani
-rm -f /etc/nginx/sites-enabled/default
+install -m 644 "$CONF_SRC" "$CONF_DST"
 
-echo "==> Installing the Cloudflare origin certificate"
-if [[ -f "$CERT_DIR/fullchain.pem" && -f "$CERT_DIR/privkey.pem" ]]; then
-    echo "    already present at $CERT_DIR, leaving it alone"
-else
-    echo "    Generate one at https://dash.cloudflare.com/?to=/:account/ssl-tls/origin-ca"
-    echo "    then copy both files into $CERT_DIR and re-run this script."
-    # A self-signed placeholder keeps `nginx -t` meaningful while TLS is not set up.
-    openssl req -x509 -newkey rsa:2048 -nodes -days 1 \
-        -subj "/CN=$DOMAIN" \
-        -keyout "$CERT_DIR/privkey.pem" -out "$CERT_DIR/fullchain.pem" 2>/dev/null
-    chmod 600 "$CERT_DIR/privkey.pem"
-    echo "    placeholder certificate written. Replace it before serving traffic."
-fi
+echo "==> Disabling the stock default server"
+# AL2023 ships a default_server on :80 inside nginx.conf that would swallow
+# every request before conf.d is read. Ours becomes the only listener.
+sed -i 's/listen\(.*\)80 default_server/listen\1 80/' /etc/nginx/nginx.conf
 
 echo "==> Reloading nginx"
 nginx -t
 systemctl enable --now nginx
 systemctl reload nginx
 
-echo "==> Opening the firewall"
-ufw allow OpenSSH
-ufw allow 'Nginx Full'
-ufw --force enable
+cat <<'EOF'
 
-echo
-echo "Done. Check it:"
-echo "  systemctl status nginx"
-echo "  curl -I http://$DOMAIN/health"
-echo
-echo "For a directly reachable origin instead of Cloudflare, replace the certificate"
-echo "with certbot:  certbot certonly --standalone -d $DOMAIN &&"
-echo "  sed -i 's#/etc/ssl/gnani/fullchain.pem#/etc/letsencrypt/live/$DOMAIN/fullchain.pem#; s#/etc/ssl/gnani/privkey.pem#/etc/letsencrypt/live/$DOMAIN/privkey.pem#' /etc/nginx/sites-available/gnani"
+Done. Filtering lives in the security group (AL2023 runs no host firewall);
+it must allow 22/tcp from your IP only and 80/tcp from the world.
+Check it:
+  systemctl status nginx
+  curl -I http://localhost/
+EOF
