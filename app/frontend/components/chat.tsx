@@ -63,7 +63,26 @@ export function Chat() {
       </div>
 
       <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-        <div className="min-h-0 flex-1 overflow-y-auto px-6">
+        <div className="flex items-center gap-2 overflow-x-auto border-b border-rule px-4 py-2 md:hidden">
+          <button className="btn shrink-0" onClick={startNew} type="button">
+            New
+          </button>
+          {notes.map((entry) => (
+            <button
+              className={`shrink-0 max-w-40 truncate border px-2 py-1 text-[12px] ${
+                entry.id === (target?.id ?? null)
+                  ? "border-ink"
+                  : "border-rule text-muted"
+              }`}
+              key={entry.id}
+              onClick={() => setSelectedId(entry.id)}
+              type="button"
+            >
+              {entry.title}
+            </button>
+          ))}
+        </div>
+        <div className="min-h-0 flex-1 overflow-y-auto px-4 sm:px-6">
           <div className="mx-auto max-w-3xl">
             {error ? (
               <p className="py-6 text-[13px]" role="alert">

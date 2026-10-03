@@ -83,7 +83,7 @@ export function Composer({ onUploaded }: { onUploaded: (note: Note) => void | Pr
 
   return (
     <form
-      className="border-t border-rule bg-paper px-6 py-4"
+      className="border-t border-rule bg-paper px-4 py-4 sm:px-6"
       onSubmit={submit}
     >
       <div className="mx-auto flex max-w-3xl flex-col gap-3">

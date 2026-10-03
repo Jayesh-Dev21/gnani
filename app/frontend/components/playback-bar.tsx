@@ -37,9 +37,9 @@ export function PlaybackBar({ note }: { note: Note }) {
   }, [audioPath]);
 
   return (
-    <div className="border-t border-rule bg-paper px-6 py-3">
-      <div className="mx-auto flex max-w-3xl items-center gap-4">
-        <div className="w-48 min-w-0 shrink-0">
+    <div className="border-t border-rule bg-paper px-4 py-3 sm:px-6">
+      <div className="mx-auto flex max-w-3xl items-center gap-3 sm:gap-4">
+        <div className="w-24 min-w-0 shrink-0 sm:w-48">
           <p className="truncate text-[13px] font-medium">{note.title}</p>
           <p className="nums mt-0.5 text-[11px] text-muted">
             {note.status} · {note.language_code}

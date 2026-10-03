@@ -71,7 +71,7 @@ On the operations side: request metrics and a queue dashboard before any tuning,
 export default function ArchitecturePage() {
   return (
     <>
-      <header className="flex items-center justify-between border-b border-rule px-6 py-4">
+      <header className="flex items-center justify-between border-b border-rule px-4 py-4 sm:px-6">
         <Link className="text-sm font-medium tracking-tight" href="/">
           Audio Notes
         </Link>
@@ -81,7 +81,7 @@ export default function ArchitecturePage() {
         </div>
       </header>
 
-      <main className="mx-auto w-full max-w-3xl flex-1 overflow-y-auto px-6 py-12">
+      <main className="mx-auto w-full max-w-3xl flex-1 overflow-y-auto px-4 py-8 sm:px-6 sm:py-12">
         <h1 className="max-w-xl text-3xl leading-tight font-medium tracking-tight">
           How the system works, end to end.
         </h1>

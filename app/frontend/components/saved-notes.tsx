@@ -1,9 +1,15 @@
 "use client";
 
-import { useSessions } from "@/lib/notes";
+import { getNote } from "@/lib/api";
+import { downloadTranscript, useSessions } from "@/lib/notes";
 
 export function SavedNotes() {
   const { notes, error } = useSessions();
+
+  async function download(id: string) {
+    const note = await getNote(id);
+    downloadTranscript(note);
+  }
 
   if (error) {
     return (
@@ -43,6 +49,13 @@ export function SavedNotes() {
                 {note.language_code}
               </p>
             </div>
+            <button
+              className="micro hover:text-ink"
+              onClick={() => void download(note.id)}
+              type="button"
+            >
+              Download
+            </button>
           </li>
         ))}
       </ul>
