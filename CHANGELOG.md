@@ -176,3 +176,39 @@
   regenerate: a failed step, or a ready note whose summary never arrived. Its
   label follows the step, "Regenerate summary" once a transcript exists and
   "Retry transcription" before that.
+
+### Features
+
+- Audio lives only in Cloudflare R2 now. The local-disk backend, the `meta.json`
+  sidecar, the authenticated streaming route and the `audio_data` volume are gone;
+  `src/storage.py` speaks to the bucket and nothing else knows where bytes live.
+  Verified against the real bucket: upload, byte-identical download, presigned URL
+  and delete all round-trip.
+- A reload glyph on a note's details asks Gnani for another transcript of the same
+  file, and every pass is kept in a new `transcript_iterations` table rather than
+  overwriting the last one. A failed pass is recorded as a failure and leaves any
+  earlier successful transcript in place, so a retry can never lose work that
+  already succeeded. `POST /api/notes/{id}/retry` takes an optional `target` of
+  `transcription` or `summary`; omitting it infers the step from the note's state.
+  An explicit `transcription` request forgets the previous provider job on purpose,
+  because resuming it would hand back identical text, while an inferred retry keeps
+  it so a live Gnani job is never paid for twice.
+- Recovery now sweeps on a timer instead of only at startup, so a note abandoned by
+  a worker that crashed long after boot is reclaimed on its own. A note left in a
+  non-terminal state with no lease at all is reclaimed too; that state was previously
+  invisible to the sweep and could only be cleared by restarting the worker.
+- `deploy/setup-nginx.sh` and `deploy/nginx.conf` put nginx in front of the stack on
+  a single EC2 instance: TLS terminated at the edge, `/` to the frontend, `/api/` to
+  the backend, request and response buffering off so uploads stream and Range
+  requests pass through untouched. `deploy/setup-ec2.sh` prepares a fresh Ubuntu
+  instance with Docker, log rotation, swap and the first compose run.
+
+### Fixes
+
+- Playback on object storage built `http://localhost:8000https://…` because the API
+  base was glued onto an already absolute signed URL. `audioUrl` and `fetchAudio`
+  now pass an absolute URL through untouched.
+- Gnani Batch submissions sent a form-encoded body with no file part, which the API
+  rejects as invalid JSON, and then a `cloud_storage` source it cannot fulfil for R2.
+  Both endpoints now receive the bytes, downloaded from R2 once into a temporary
+  file that is released before polling starts.

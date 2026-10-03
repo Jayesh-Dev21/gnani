@@ -288,17 +288,19 @@ The user must always be able to tell what happened. Concretely:
 - **Audio files live in the bucket, never in the repo or the DB.** DB stores the object key,
   size, duration, mime type. `app/backend/src/storage.py` is the **only** module allowed to build
   a filesystem path or hold bucket credentials, and it has two backends behind one interface:
-  `STORAGE_BACKEND=local` writes under `DATA_DIR`, `STORAGE_BACKEND=r2` uses Cloudflare R2 over its
-  S3-compatible API (`aioboto3`). Metadata lives in the database, which already has filename,
+  Cloudflare R2 over its S3-compatible API (`aioboto3`) is the only backend: there is no local disk
+  fallback, so the compose stack carries no audio volume. Metadata lives in the database, which already has filename,
   content type and size, so neither backend keeps a sidecar file.
 - **The R2 bucket is private.** There are no public URLs and no custom domain. `audio_url` is a
   presigned GET link, so a leaked URL expires rather than becoming a permanent public file. Two
-  things consume those links: the browser (`fetchAudio` passes an absolute URL straight to the
-  `<audio>` element instead of proxying bytes through the API) and Gnani, which is handed
-  `source: {type: "cloud_storage"}` for Batch STT instead of the bytes, so the 10MB multipart cap
-  does not apply in production. Because `source` is a URL, the synchronous endpoint still needs
-  real bytes, so that path downloads to a temporary file first. Switching backends moves no other
-  code.
+  thing consumes those links: the browser, which gets one from `audio_url` and hands it straight to
+  the `<audio>` element rather than proxying bytes through the API, so Range requests still work.
+  Gnani is **not** one of them: its `cloud_storage` source only supports `aws_s3`, `gcp_gcs` and
+  `azure_blob`. R2 is accepted as `aws_s3` with our `endpoint_url` and the job is created, but Gnani
+  then fails to fetch the object (`START_FAILED`), so both Gnani endpoints receive the bytes and the
+  worker downloads the object from R2 to a temporary file first. Switching to a bucket Gnani can read
+  would remove that download and lift the 10MB cap; do not assume `source` works for R2 without
+  testing it end to end.
 - **Long audio**: do not add chunking. Batch STT takes whole files up to 4 hours; chunking would
   only add mid-word splice artefacts. The 10 MB per-file cap applies to Gnani's direct multipart
   path in dev, not to cloud-storage source in prod.

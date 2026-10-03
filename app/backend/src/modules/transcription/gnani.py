@@ -121,12 +121,13 @@ async def create_batch_job(filename: str, language_code: str, audio_path: str) -
     # reachable as aws_s3 and the job is accepted, but Gnani then fails to fetch the
     # object (START_FAILED), so multipart stays the path that actually works.
     # The cost is Gnani's 10MB per-file cap, which the upload limit already matches.
-    async with _client(300) as client, Path(audio_path).open("rb") as audio:
-        response = await client.post(
-            BATCH_JOBS_PATH,
-            data={"config": _json_dumps(config)},
-            files={"files": (filename, audio)},
-        )
+    async with _client(300) as client:
+        with Path(audio_path).open("rb") as audio:
+            response = await client.post(
+                BATCH_JOBS_PATH,
+                data={"config": _json_dumps(config)},
+                files={"files": (filename, audio)},
+            )
 
     body = _json(response)
     if response.status_code not in (200, 201):
