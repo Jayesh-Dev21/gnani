@@ -1,5 +1,6 @@
 import Link from "next/link";
 
+import { ArchitectureDiagram } from "@/components/architecture-diagram";
 import { ThemeToggle } from "@/components/theme-toggle";
 
 const SECTIONS = [
@@ -21,7 +22,7 @@ The JWT plugin issues a signed token per session. The browser sends it as \`Auth
 
 Every query is scoped to the verified subject, so one account cannot read, rename, delete or play another account's audio — a request for somebody else's note returns 404, not 403, because the existence of the note is itself private. A missing or forged token is 401. There is a development bypass behind \`ENABLE_DEV_AUTH\`, and the app refuses to start if that flag is set while \`ENV=production\`.
 
-One consequence worth stating: an HTML audio element cannot send an Authorization header. So playback never goes through an authenticated proxy — the API returns a presigned R2 URL and the element reads R2 directly, with Range requests intact for seeking.`,
+One consequence worth stating: an HTML audio element cannot send an Authorization header. So playback bytes flow through an authenticated API route that streams them out of R2, and the player gets them as an object URL — Range requests are preserved for seeking, and nothing in the browser holds a credential-bearing URL. Accessible formats serve directly; raw ADTS AAC and AMR are transcoded to mp3 on the way out because browsers cannot seek or report a real duration for them.`,
   },
   {
     heading: "Upload to transcript",
@@ -35,11 +36,11 @@ The client polls the note endpoint while the status is non-terminal and renders 
   },
   {
     heading: "Where files live",
-    body: `Audio lives in Cloudflare R2, never in the database, never in the repo, and never on the instance's disk. The notes row holds the object key, size, content type and duration; \`src/storage.py\` is the only module that builds a key or holds bucket credentials.
+    body: `Audio lives in Cloudflare R2 and nowhere else: not in Postgres, not in the repo, not on the instance's disk. The notes row holds the object key, size, content type and duration. \`src/storage.py\` is the only module that builds a key or holds bucket credentials.
 
-The bucket is private. There is no public URL and no custom domain: \`audio_url\` is a presigned GET link that expires after an hour, so a leaked link stops working instead of becoming a permanent public file. Two things use those links — the browser hands one straight to the audio element, and Gnani is handed one as a \`cloud_storage\` source for Batch STT, which is why the ten megabyte multipart cap does not apply. The synchronous endpoint still needs real bytes, so that one path downloads to a temporary file first and releases it before polling starts.
+The bucket is private, with no public URL and no custom domain. The API streams the bytes to the browser with Range support, which costs one hop and buys three things: no cross-origin grant to configure, no link that expires in the middle of a long recording, and no fresh signature on every poll restarting the player's buffer.
 
-Because the file is served with HTTP range support, seeking works through the native player without any custom streaming code.`,
+Gnani's Batch API can fetch from a bucket itself, but only from \`aws_s3\`, \`gcp_gcs\` and \`azure_blob\`. R2 is accepted as \`aws_s3\` with our endpoint and the job is created, then fails to fetch the object with \`START_FAILED\`. So both Gnani endpoints receive the bytes: the worker downloads the object once into a temporary file, uploads it, and releases the file before it starts polling. The cost is Gnani's 10MB per-file cap, which the upload limit already matches. Moving to a bucket Gnani can read would remove the download and lift the cap.`,
   },
   {
     heading: "Synchronous vs background",
@@ -51,21 +52,17 @@ Retries with backoff are bounded. After the last attempt the note becomes failed
   },
   {
     heading: "Failure and progress",
-    body: `A note is always in exactly one of four states — queued, transcribing, ready, failed — and every transition is written to the database before the work begins, so a crashed worker leaves a truthful state rather than a spinner that never resolves. Failed notes store a code and a message, and the interface shows that message rather than a generic failure.
+    body: `Every state transition is written to the database before the work begins, so a worker that dies leaves a state the UI can explain rather than a spinner that never resolves. A note is only ever held by one worker, proven by a lease that the running job keeps pushing forward.
 
-Language selection is validated at upload rather than at job time. Gnani's Batch API supports eight of the ten Indian languages; Gujarati and Punjabi work on the synchronous endpoint only, so picking them at upload returns a clear 400 instead of queueing work that is guaranteed to fail.
+A lease is not enough on its own. The worker sweeps for abandoned notes every minute, not only at startup, because a crash long after boot would otherwise leave a note waiting for the next restart. A note in a non-terminal state with no live lease goes back to queued and is re-deferred.
 
-Health is split in two: a liveness endpoint that never touches Postgres, storage or Gnani, so a dependency blip does not make Docker restart a healthy API, and readiness for everything else.`,
-  },
-  {
-    heading: "What is not built yet",
-    body: `Two things are stubs, and the interface says so rather than pretending otherwise. Transcription returns no transcript yet: the worker, the queue and the Gnani client are the next unit, and a note sits at queued until then. Summarisation is not implemented at all — the summary field exists and stays null, and the transcript is the fallback view.
+Nothing retries automatically after a provider call, because a retry would re-send audio that has already been billed. Instead the provider job id is recorded, so the next attempt resumes that job instead of paying twice. If it turns out to be dead, one fresh submission replaces it — and that only happens because somebody asked.
 
-Everything else in this document describes code that runs today.`,
+Asking is a button. Retry re-runs only the step that failed: transcription again for a failed note, the summary alone when the transcript already exists. Every pass is kept in the transcript_iterations table and the note shows the latest one, so a failed attempt is visible in history without destroying a transcript that already worked.`,
   },
   {
     heading: "What I would change with more time",
-    body: `Transcripts would be paginated or virtualised for display so a long recording does not render as one enormous block, and diarization would be exposed for two-speaker recordings. Transcripts and summaries would be editable, because a transcription is a starting point rather than a verdict.
+    body: `Transcripts would be paginated or virtualised for display so a long recording does not render as one enormous block, and diarization would be exposed for two-speaker recordings. Transcripts and summaries would be editable, because a transcription is a starting point rather than a verdict. A few small features are easy wins on top: live transcription from the recording itself rather than the batch path, and segment-level time indexing so a transcript line can jump the player to that moment. Gujarati (gu-IN) and Punjabi (pa-IN) are rejected at upload today because Gnani Batch does not support them; adding polling-backed batch support for both is a small feature once the provider exposes them.
 
 On the operations side: request metrics and a queue dashboard before any tuning, because at this volume the interesting failures are timeouts and rate limits rather than throughput. Backups for Postgres, because the bucket holds audio but the database holds the only copy of what was said about it. And a second worker once the queue depth makes one process the bottleneck.`,
   },
@@ -89,10 +86,15 @@ export default function ArchitecturePage() {
           How the system works, end to end.
         </h1>
         <p className="micro mt-4">
-          Next.js · FastAPI · Postgres · Gnani Batch STT
+          Next.js · FastAPI · Postgres · R2 · Gnani Batch STT · GroqCloud · one EC2 instance
         </p>
 
-        <div className="mt-12">
+        <section className="border-t border-rule py-8">
+          <h2 className="micro">The shape of it</h2>
+          <ArchitectureDiagram />
+        </section>
+
+        <div className="mt-0">
           {SECTIONS.map((section) => (
             <section className="border-t border-rule py-8" key={section.heading}>
               <h2 className="micro">{section.heading}</h2>

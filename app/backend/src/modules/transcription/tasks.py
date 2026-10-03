@@ -225,9 +225,13 @@ async def _mark_ready(session, note_id: UUID, user_id: str, attempt: UUID, trans
     )
     note.status = NoteStatus.READY
     note.transcript = transcript.text
-    note.duration_seconds = transcript.duration_seconds
+    # Gnani sometimes omits the duration; a probed value from upload is better.
+    if transcript.duration_seconds is not None:
+        note.duration_seconds = transcript.duration_seconds
     note.error_code = None
     note.error_message = None
+    # A fresh transcript invalidates any summary written against the old one.
+    note.summary = None
     note.updated_at = now
     await session.commit()
 

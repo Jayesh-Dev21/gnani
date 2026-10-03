@@ -1,5 +1,7 @@
 """Note routes: parse input, call the service, map results to status codes."""
 
+import tempfile
+from pathlib import Path
 from typing import Annotated
 from uuid import UUID
 
@@ -87,6 +89,9 @@ async def stream_note_audio(
     """Stream a note's audio out of R2, honouring Range so seeking works."""
     note = await service.get_for_user(session, user.id, note_id)
 
+    if storage.needs_transcode(note.content_type):
+        return await _stream_transcoded(note)
+
     payload, start, end, partial = await storage.fetch_range(
         str(note_id), note.filename, request.headers.get("range"), note.size_bytes
     )
@@ -104,6 +109,32 @@ async def stream_note_audio(
         media_type=note.content_type,
         headers=headers,
     )
+
+
+async def _stream_transcoded(note) -> Response:
+    """Browsers cannot seek raw ADTS AAC or AMR: serve an mp3 transcode instead.
+
+    Range is not honoured through the transcode, so the whole object is returned
+    and the element reads its duration from the mp3's real metadata.
+    """
+    src = Path(tempfile.NamedTemporaryFile(delete=False, suffix=".audio").name)
+    dst = Path(tempfile.NamedTemporaryFile(delete=False, suffix=".mp3").name)
+    try:
+        await storage.fetch_to(str(note.id), note.filename, src)
+        await storage.transcode_to_mp3(src, dst)
+        payload = dst.read_bytes()
+        return Response(
+            content=payload,
+            status_code=200,
+            media_type="audio/mpeg",
+            headers={
+                "accept-ranges": "none",
+                "cache-control": "private, max-age=3600",
+            },
+        )
+    finally:
+        src.unlink(missing_ok=True)
+        dst.unlink(missing_ok=True)
 
 
 @router.head("/{note_id}/audio", include_in_schema=False)

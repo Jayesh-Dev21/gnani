@@ -155,6 +155,9 @@ async def create(
     note.filename = stored.filename
     note.content_type = stored.content_type
     note.size_bytes = stored.size_bytes
+    if stored.duration_seconds is not None:
+        # ffprobe's number beats the browser's guess (raw AAC reports garbage).
+        note.duration_seconds = sanitise_duration(stored.duration_seconds)
     if not note.title:
         note.title = stored.filename
 

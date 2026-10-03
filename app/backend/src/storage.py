@@ -1,14 +1,17 @@
 """Audio storage in Cloudflare R2.
 
-R2 is the only backend. Audio is private: the browser and Gnani both read it with
-short-lived presigned URLs, so a leaked link expires instead of becoming a
-permanent public file.
+R2 is the only backend. Audio stays private: nothing is publicly fetchable, and
+playback bytes always flow through the authenticated API route so a leaked link
+expires instead of becoming a permanent public file. Gnani receives the bytes
+over multipart; it cannot fetch from R2.
 
 This module is the only place in the backend allowed to build an object key or
 hold bucket credentials. Object metadata lives in the database, which already has
 the filename, content type and size.
 """
 
+import asyncio
+import subprocess
 import tempfile
 from dataclasses import dataclass
 from pathlib import Path
@@ -26,6 +29,7 @@ class StoredAudio:
     filename: str
     content_type: str
     size_bytes: int
+    duration_seconds: float | None = None
 
 
 def object_key(note_id: str, filename: str) -> str:
@@ -71,11 +75,73 @@ async def save(note_id: str, upload: UploadFile) -> StoredAudio:
     spooled = _spool(upload)
     try:
         size = spooled.stat().st_size
+        duration = await probe_duration(spooled)
         await _put(note_id, filename, content_type, spooled)
     finally:
         spooled.unlink(missing_ok=True)
 
-    return StoredAudio(filename=filename, content_type=content_type, size_bytes=size)
+    return StoredAudio(filename=filename, content_type=content_type, size_bytes=size, duration_seconds=duration)
+
+
+async def probe_duration(source: Path) -> float | None:
+    """Read the real duration with ffprobe, so the browser's guess is not the truth."""
+    proc = await asyncio.create_subprocess_exec(
+        "ffprobe",
+        "-v", "error",
+        "-show_format",
+        "-select_streams",
+        "a:0",
+        source,
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.DEVNULL,
+    )
+    stdout, _ = await proc.communicate()
+    for line in stdout.decode().splitlines():
+        if line.startswith("duration="):
+            try:
+                value = float(line.partition("=")[2])
+            except ValueError:
+                return None
+            return value if value > 0 else None
+    return None
+
+
+# Containers a browser's <audio> element can actually decode with durations it can
+# seek on. ADTS AAC and AMR come through as audio/aac and audio/amr and neither
+# plays nor reports duration; they are transcoded on the way out.
+BROWSER_READY_CONTENT_TYPES = {
+    "audio/mpeg",
+    "audio/mp4",
+    "audio/mp4a-latm",
+    "audio/ogg",
+    "audio/webm",
+    "audio/wav",
+    "audio/x-wav",
+    "audio/flac",
+}
+
+
+def needs_transcode(content_type: str) -> bool:
+    return content_type not in BROWSER_READY_CONTENT_TYPES
+
+
+async def transcode_to_mp3(source: Path, destination: Path) -> Path:
+    """Convert a stored object into a browser-playable mp3, preserving seek."""
+    proc = await asyncio.create_subprocess_exec(
+        "ffmpeg",
+        "-y",
+        "-v", "error",
+        "-i", str(source),
+        "-codec:a", "libmp3lame",
+        "-b:a", "192k",
+        str(destination),
+        stdout=asyncio.subprocess.DEVNULL,
+        stderr=asyncio.subprocess.PIPE,
+    )
+    _, stderr = await proc.communicate()
+    if proc.returncode != 0:
+        raise RuntimeError(f"ffmpeg: {stderr.decode().strip()}")
+    return destination
 
 
 def _spool(upload: UploadFile) -> Path:
