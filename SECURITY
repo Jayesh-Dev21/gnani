@@ -1,0 +1,11 @@
+SECURITY
+
+- Never commit .env. It holds GNANI_API_KEY, GROQ_API_KEY, R2 keys, and
+  BETTER_AUTH_SECRET. The repo's .env.example has blanks only.
+- ENABLE_DEV_AUTH must never be true in production. It bypasses auth.
+- Put TLS at a reverse proxy (Caddy/nginx/Cloudflare). Do not expose the
+  API directly to the internet without it.
+- Restrict SSH ingress to your own IP and keep the R2 bucket private;
+  audio links are presigned and expire.
+
+Report a vulnerability by opening a private issue on the GitHub repo.
