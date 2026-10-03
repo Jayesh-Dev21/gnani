@@ -1,4 +1,4 @@
-gnani - Audio Notes Platform
+Gnani-SST - Audio Notes Platform (Speech-To-Text)
 
 Upload audio, get a transcript via Gnani ASR, and an LLM summary via Groq.
 
@@ -11,3 +11,5 @@ Run locally:
 
 Frontend: http://localhost:3000
 Backend API: http://localhost:8000
+
+<img width="1895" height="1069" alt="image" src="https://github.com/user-attachments/assets/3dd6c1a6-738d-4177-b6ae-aa02854e7d68" />
