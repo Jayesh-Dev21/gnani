@@ -128,13 +128,66 @@ async def presigned_url(note_id: str, filename: str, expires: int | None = None)
         )
 
 
-async def playback_url(note_id: str, filename: str) -> str:
-    """Where the browser reads the audio from."""
-    return await presigned_url(note_id, filename)
+def playback_url(note_id: str, filename: str) -> str:
+    """Where the browser reads the audio from.
+
+    The bytes are streamed by the API rather than handed over as a signed link.
+    That costs one hop, and it removes three ways for playback to break in the
+    browser: a cross-origin request to the bucket, a link that expires mid-session,
+    and a fresh signature on every poll restarting the player's buffer.
+    """
+    return f"/api/notes/{note_id}/audio"
+
+
+def parse_byte_range(header: str | None, size: int) -> tuple[int, int]:
+    """Turn a Range header into inclusive byte offsets, or the whole file."""
+    if not header or not header.startswith("bytes=") or size <= 0:
+        return 0, max(size - 1, 0)
+
+    raw = header.removeprefix("bytes=").split(",")[0].strip()
+    start_text, _, end_text = raw.partition("-")
+
+    try:
+        start = int(start_text) if start_text else 0
+        end = int(end_text) if end_text else size - 1
+    except ValueError:
+        return 0, size - 1
+
+    if start < 0:  # a suffix range asks for the last N bytes
+        start = max(size + start, 0)
+    end = min(end, size - 1)
+    if start > end:
+        return 0, size - 1
+    return start, end
+
+
+async def fetch_range(
+    note_id: str, filename: str, range_header: str | None, size: int
+) -> tuple[bytes, int, int, bool]:
+    """Return the requested slice of an object as bytes.
+
+    Uploads are capped at ten megabytes, so the slice is read in one piece. That is
+    deliberate: it keeps the response path free of streaming edge cases, and a
+    streaming variant is only worth it if the upload limit is raised.
+    """
+    start, end = parse_byte_range(range_header, size)
+    partial = bool(range_header) and (start, end) != (0, size - 1)
+
+    async with _client() as client:
+        request = {
+            "Bucket": settings.r2_bucket,
+            "Key": object_key(note_id, filename),
+        }
+        if partial:
+            request["Range"] = f"bytes={start}-{end}"
+        response = await client.get_object(**request)
+        payload = await response["Body"].read()
+
+    return payload, start, end, partial
 
 
 async def fetch_to(note_id: str, filename: str, destination: Path) -> Path:
-    """Fetch the object to a local file, for the synchronous Gnani endpoint."""
+    """Fetch the object to a local file, for the Gnani endpoints that take bytes."""
     destination.parent.mkdir(parents=True, exist_ok=True)
     async with _client() as client:
         await client.download_file(

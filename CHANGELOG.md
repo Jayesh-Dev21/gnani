@@ -208,6 +208,13 @@
 - Playback on object storage built `http://localhost:8000https://…` because the API
   base was glued onto an already absolute signed URL. `audioUrl` and `fetchAudio`
   now pass an absolute URL through untouched.
+- Audio is streamed to the browser by the API again, out of R2, with Range support,
+  instead of being handed over as a presigned link. R2 itself was never the problem,
+  so the bucket stays private: a cross-origin grant, a link that expires mid-session
+  and a fresh signature on every poll restarting the player's buffer were three
+  separate ways for playback to break, and the hop removes all three. Verified
+  against the real bucket: 200 for the whole file byte-identical to the upload, 206
+  with a correct `content-range` for a range request, 401 without a token.
 - Gnani Batch submissions sent a form-encoded body with no file part, which the API
   rejects as invalid JSON, and then a `cloud_storage` source it cannot fulfil for R2.
   Both endpoints now receive the bytes, downloaded from R2 once into a temporary

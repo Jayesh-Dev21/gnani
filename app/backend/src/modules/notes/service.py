@@ -110,10 +110,9 @@ async def to_note(note: Note, *, include_content: bool = True) -> dict:
     if include_content:
         payload["transcript"] = note.transcript
         payload["summary"] = note.summary
-        # Local disk is served through the authenticated route; a private bucket is
-        # served through a short-lived signed URL. Either way the browser gets one
-        # field to play from and never has to know which backend is in use.
-        payload["audio_url"] = await storage.playback_url(str(note.id), note.filename)
+        # One field to play from. The API streams the bytes out of R2, so the browser
+        # never needs a signed URL, a cross-origin grant or a link that expires.
+        payload["audio_url"] = storage.playback_url(str(note.id), note.filename)
     return payload
 
 
