@@ -106,16 +106,8 @@ async def transcribe_rest(path: Path, language_code: str) -> Transcript:
     return Transcript(text=text)
 
 
-async def create_batch_job(
-    note_id: str, filename: str, language_code: str, local_path: Path | None = None
-) -> str:
-    """Submit a Batch job.
-
-    Development sends the bytes directly, which Gnani caps at 10MB per file. In
-    production the audio is already in object storage, so Gnani is handed a signed
-    URL to fetch and no size limit applies.
-    """
-    from src import storage
+async def create_batch_job(filename: str, language_code: str, audio_path: str) -> str:
+    """Submit a Batch job with the audio attached."""
 
     config: dict = {
         "model": settings.gnani_model,
@@ -124,29 +116,17 @@ async def create_batch_job(
         "with_diarization": False,
     }
 
-    async with _client(120) as client:
-        if storage.using_r2():
-            source = await storage.presigned_url(note_id, filename)
-            config["source"] = {
-                "type": "cloud_storage",
-                "url": source,
-                "original_path": filename,
-            }
-            response = await client.post(
-                BATCH_JOBS_PATH, data={"config": _json_dumps(config)}
-            )
-        elif local_path is not None:
-            with local_path.open("rb") as audio:
-                response = await client.post(
-                    BATCH_JOBS_PATH,
-                    data={"config": _json_dumps(config)},
-                    files={"files": (filename, audio)},
-                )
-        else:
-            raise GnaniError(
-                "batch_no_source",
-                "No audio is available to send to the batch job.",
-            )
+    # The audio is uploaded to Gnani rather than referenced. Gnani's cloud_storage
+    # source only accepts its own providers (aws_s3, gcp_gcs, azure_blob); R2 is
+    # reachable as aws_s3 and the job is accepted, but Gnani then fails to fetch the
+    # object (START_FAILED), so multipart stays the path that actually works.
+    # The cost is Gnani's 10MB per-file cap, which the upload limit already matches.
+    async with _client(300) as client, Path(audio_path).open("rb") as audio:
+        response = await client.post(
+            BATCH_JOBS_PATH,
+            data={"config": _json_dumps(config)},
+            files={"files": (filename, audio)},
+        )
 
     body = _json(response)
     if response.status_code not in (200, 201):

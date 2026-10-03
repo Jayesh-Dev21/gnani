@@ -2,7 +2,7 @@ from datetime import datetime
 from enum import StrEnum
 from uuid import UUID, uuid4
 
-from sqlalchemy import DateTime, Enum, Float, Index, Integer, String, Text, func
+from sqlalchemy import DateTime, Enum, Float, ForeignKey, Index, Integer, String, Text, func
 from sqlalchemy.dialects.postgresql import UUID as PgUUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -15,6 +15,29 @@ class NoteStatus(StrEnum):
     READY = "ready"
     SUMMARISING = "summarising"
     FAILED = "failed"
+
+
+class TranscriptIteration(Base):
+    """One pass at transcribing a note.
+
+    A user can send the same file again, and each attempt is kept rather than
+    overwritten: a later attempt that fails must not erase an earlier success.
+    """
+
+    __tablename__ = "transcript_iterations"
+
+    id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
+    note_id: Mapped[UUID] = mapped_column(
+        PgUUID(as_uuid=True), ForeignKey("notes.id", ondelete="CASCADE"), index=True
+    )
+    transcript: Mapped[str | None] = mapped_column(Text, nullable=True)
+    status: Mapped[str] = mapped_column(String, nullable=False)
+    error_code: Mapped[str | None] = mapped_column(String, nullable=True)
+    error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
+    duration_seconds: Mapped[float | None] = mapped_column(Float, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
 
 
 class Note(Base):

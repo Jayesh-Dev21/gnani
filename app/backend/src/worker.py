@@ -6,6 +6,7 @@ being restarted without an ASR request ever occupying a request handler.
 """
 
 import asyncio
+import contextlib
 import logging
 
 from src.config import settings
@@ -29,7 +30,31 @@ async def main() -> None:
     # Recovery defers jobs of its own, so the queue must be open before it runs.
     await app.open_async()
     await recover_on_startup()
-    await app.run_worker_async(queues=[queue.strip() for queue in settings.worker_queues.split(",") if queue.strip()])
+
+    # A sweep at startup is not enough: a worker can crash long after it started and
+    # the note it was holding would then wait for the next restart. Sweeping on a
+    # timer reclaims abandoned notes on their own.
+    async def sweep_forever() -> None:
+        while True:
+            await asyncio.sleep(settings.worker_recovery_interval_seconds)
+            try:
+                await recover_on_startup()
+            except Exception:
+                logging.getLogger("worker").exception("recovery sweep failed")
+
+    sweeper = asyncio.create_task(sweep_forever())
+    try:
+        await app.run_worker_async(
+            queues=[
+                queue.strip()
+                for queue in settings.worker_queues.split(",")
+                if queue.strip()
+            ]
+        )
+    finally:
+        sweeper.cancel()
+        with contextlib.suppress(asyncio.CancelledError):
+            await sweeper
 
 
 if __name__ == "__main__":

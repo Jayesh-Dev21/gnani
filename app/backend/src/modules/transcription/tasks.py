@@ -15,7 +15,7 @@ from uuid import UUID, uuid4
 from sqlalchemy import select
 
 from src.config import settings
-from src.db.models import Note
+from src.db.models import Note, NoteStatus, TranscriptIteration
 from src.db.session import session_factory
 from src.modules.transcription import gnani
 from src.queue import QUEUE_TRANSCRIPTION, app, defer_summarisation
@@ -97,8 +97,8 @@ async def _transcribe(
 ) -> gnani.Transcript:
     from src import storage
 
-    # The synchronous endpoint needs the bytes. On local disk that is a copy; on R2
-    # it is a download, and only because this path exists at all.
+    # Both Gnani endpoints take bytes rather than a bucket reference, so the object
+    # is fetched once here and released before the job starts polling.
     with tempfile.TemporaryDirectory(prefix=f"transcribe-{str(note_id)[:8]}-") as workdir:
         audio = await storage.fetch_to(str(note_id), filename, Path(workdir) / filename)
         try:
@@ -106,10 +106,7 @@ async def _transcribe(
         except gnani.TooLongForRest:
             log.info("escalating to batch: %s", filename)
 
-        # Batch can fetch the object itself, so nothing is uploaded twice.
-        job_id = await gnani.create_batch_job(
-            str(note_id), filename, language_code, local_path=audio
-        )
+        job_id = await gnani.create_batch_job(filename, language_code, str(audio))
     await _record_submission(note_id, user_id, attempt, job_id)
     await _start_when_allowed(job_id)
     return await gnani.wait_for_batch(job_id, settings.stt_batch_deadline_seconds, heartbeat)
@@ -205,6 +202,11 @@ async def _extend_lease(session, note_id: UUID, attempt: UUID) -> None:
 
 
 async def _mark_ready(session, note_id: UUID, user_id: str, attempt: UUID, transcript) -> None:
+    """Store this pass and keep every earlier one.
+
+    A note is ready as soon as one pass worked, so another attempt adds to the
+    history instead of replacing it.
+    """
     note = await session.scalar(
         select(Note)
         .where(Note.id == note_id, Note.user_id == user_id, Note.attempt_id == attempt)
@@ -213,7 +215,15 @@ async def _mark_ready(session, note_id: UUID, user_id: str, attempt: UUID, trans
     if note is None:
         return
     now = datetime.now(UTC)
-    note.status = "ready"
+    session.add(
+        TranscriptIteration(
+            note_id=note_id,
+            transcript=transcript.text,
+            status=NoteStatus.READY.value,
+            duration_seconds=transcript.duration_seconds,
+        )
+    )
+    note.status = NoteStatus.READY
     note.transcript = transcript.text
     note.duration_seconds = transcript.duration_seconds
     note.error_code = None
@@ -225,6 +235,7 @@ async def _mark_ready(session, note_id: UUID, user_id: str, attempt: UUID, trans
 async def _mark_failed(
     session, note_id: UUID, user_id: str, attempt: UUID, code: str, message: str
 ) -> None:
+    """Record the failed pass without destroying an earlier successful transcript."""
     note = await session.scalar(
         select(Note)
         .where(Note.id == note_id, Note.user_id == user_id, Note.attempt_id == attempt)
@@ -233,9 +244,24 @@ async def _mark_failed(
     if note is None:
         return
     now = datetime.now(UTC)
-    note.status = "failed"
-    note.error_code = code
-    note.error_message = message
+    session.add(
+        TranscriptIteration(
+            note_id=note_id,
+            status=NoteStatus.FAILED.value,
+            error_code=code,
+            error_message=message,
+        )
+    )
+
+    if note.transcript:
+        # Something good already exists, so the note stays ready and keeps it. The
+        # failure is visible in the history rather than by losing the transcript.
+        log.warning("note=%s pass failed, keeping the transcript it already has", note_id)
+    else:
+        note.status = NoteStatus.FAILED
+        note.error_code = code
+        note.error_message = message
+
     note.updated_at = now
     await session.commit()
 

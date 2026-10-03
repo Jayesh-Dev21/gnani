@@ -50,8 +50,8 @@ export function useSessions() {
       await deleteNote(id);
       await refresh();
     },
-    retry: async (id: string) => {
-      await retryNote(id);
+    retry: async (id: string, target?: "transcription" | "summary") => {
+      await retryNote(id, target);
       await refresh();
     },
   };

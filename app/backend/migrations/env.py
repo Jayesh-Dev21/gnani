@@ -18,9 +18,18 @@ target_metadata = Base.metadata
 
 MANAGED_BY_BETTER_AUTH = {"user", "session", "account", "verification", "jwks"}
 
+# Procrastinate installs and owns its own queue tables. They are not ORM models,
+# so autogenerate would otherwise read them as tables this project should drop.
+MANAGED_BY_PROCRASTINATE = {
+    "procrastinate_jobs",
+    "procrastinate_events",
+    "procrastinate_periodic_defers",
+    "procrastinate_workers",
+}
+
 
 def include_object(object, name, type_, reflected, compare_to):
-    if type_ == "table" and name in MANAGED_BY_BETTER_AUTH:
+    if type_ == "table" and name in MANAGED_BY_BETTER_AUTH | MANAGED_BY_PROCRASTINATE:
         return False
     return True
 

@@ -14,7 +14,7 @@ holding it, so the note needs a fresh job.
 import logging
 from datetime import UTC, datetime
 
-from sqlalchemy import select, text
+from sqlalchemy import or_, select, text
 
 from src.db.models import Note, NoteStatus
 from src.db.session import session_factory
@@ -47,8 +47,9 @@ async def _reset_expired_leases() -> tuple[dict[str, str], dict[str, str]]:
             await session.scalars(
                 select(Note).where(
                     Note.status.in_((NoteStatus.TRANSCRIBING, NoteStatus.SUMMARISING)),
-                    Note.lease_expires_at.is_not(None),
-                    Note.lease_expires_at <= now,
+                    # A missing lease means no worker ever finished claiming it, so
+                    # it is abandoned just as much as one that has timed out.
+                    or_(Note.lease_expires_at.is_(None), Note.lease_expires_at <= now),
                 )
             )
         ).all()
@@ -83,7 +84,8 @@ async def _find_notes_needing_a_job() -> tuple[dict[str, str], dict[str, str]]:
         rows = await session.execute(
             text(
                 """
-                SELECT n.id::text AS id, n.user_id::text AS user_id
+                SELECT n.id::text AS id, n.user_id::text AS user_id,
+                       n.status::text AS status
                   FROM notes n
                  WHERE n.status = ANY(:statuses)
                    AND NOT EXISTS (

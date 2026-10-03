@@ -5,9 +5,13 @@ import { ThemeToggle } from "@/components/theme-toggle";
 const SECTIONS = [
   {
     heading: "Where it runs",
-    body: `Three containers from one compose file: Postgres, the FastAPI backend, and the Next.js frontend. The API is a resource server and the frontend is the only thing that talks to a browser, so nothing else is exposed to the internet. In development the frontend runs on the host with \`bun dev\` on port 3000 and the API on 8000, because container-to-container traffic is not available in every environment.
+    body: `One compose file on a single AWS EC2 instance: Postgres, the FastAPI backend, a worker that drains the transcription and summarisation queues, and the Next.js frontend. The API is a resource server and the frontend is the only thing that talks to a browser, so nothing else is exposed to the internet.
 
-Deploying is \`docker compose up -d --build\` on a VPS or Render behind a proxy. TLS is an infrastructure assumption, not something the application enforces: the app serves HTTP and the reverse proxy terminates it.`,
+Nginx is the only door in. It terminates TLS and forwards \`/\` to the frontend on 3000 and \`/api/\` to the backend on 8000; the compose file publishes those ports for local debugging only, and the security group leaves them closed. \`deploy/setup-nginx.sh\` installs the site and \`deploy/setup-ec2.sh\` prepares a fresh instance. Cloudflare terminates TLS in front of the origin, so the certificate nginx serves is a Cloudflare origin certificate rather than a public one.
+
+In development the frontend runs on the host with \`bun dev\` on port 3000 and the API on 8000, because container-to-container traffic is not available in every environment.
+
+TLS is an infrastructure assumption, not something the application enforces: the app serves HTTP and the reverse proxy terminates it.`,
   },
   {
     heading: "Authentication and ownership",
@@ -17,7 +21,7 @@ The JWT plugin issues a signed token per session. The browser sends it as \`Auth
 
 Every query is scoped to the verified subject, so one account cannot read, rename, delete or play another account's audio — a request for somebody else's note returns 404, not 403, because the existence of the note is itself private. A missing or forged token is 401. There is a development bypass behind \`ENABLE_DEV_AUTH\`, and the app refuses to start if that flag is set while \`ENV=production\`.
 
-One consequence worth stating: an HTML audio element cannot send an Authorization header, so the app fetches the bytes with the session token and hands the player an object URL. That is a placeholder for signed URLs, which is how audio should be served in production.`,
+One consequence worth stating: an HTML audio element cannot send an Authorization header. So playback never goes through an authenticated proxy — the API returns a presigned R2 URL and the element reads R2 directly, with Range requests intact for seeking.`,
   },
   {
     heading: "Upload to transcript",
@@ -31,7 +35,9 @@ The client polls the note endpoint while the status is non-terminal and renders 
   },
   {
     heading: "Where files live",
-    body: `Audio goes to storage, never to the database and never to the repo. The notes row holds the object key, size, content type and duration. In development that storage is a local disk path behind one module; production swaps in object storage with short-lived signed URLs, and nothing outside that module knows the difference.
+    body: `Audio lives in Cloudflare R2, never in the database, never in the repo, and never on the instance's disk. The notes row holds the object key, size, content type and duration; \`src/storage.py\` is the only module that builds a key or holds bucket credentials.
+
+The bucket is private. There is no public URL and no custom domain: \`audio_url\` is a presigned GET link that expires after an hour, so a leaked link stops working instead of becoming a permanent public file. Two things use those links — the browser hands one straight to the audio element, and Gnani is handed one as a \`cloud_storage\` source for Batch STT, which is why the ten megabyte multipart cap does not apply. The synchronous endpoint still needs real bytes, so that one path downloads to a temporary file first and releases it before polling starts.
 
 Because the file is served with HTTP range support, seeking works through the native player without any custom streaming code.`,
   },
@@ -59,7 +65,9 @@ Everything else in this document describes code that runs today.`,
   },
   {
     heading: "What I would change with more time",
-    body: `Storage would move to S3 or R2 with signed URLs, and Gnani's cloud-storage source would replace the direct multipart path — that also lifts the ten megabyte dev upload cap. Transcripts would be paginated or virtualised for display so a long recording does not render as one enormous block, and diarization would be exposed for two-speaker recordings. I would add request metrics and a queue dashboard before tuning anything else, because at this volume the interesting failures are timeouts and rate limits, not throughput.`,
+    body: `Transcripts would be paginated or virtualised for display so a long recording does not render as one enormous block, and diarization would be exposed for two-speaker recordings. Transcripts and summaries would be editable, because a transcription is a starting point rather than a verdict.
+
+On the operations side: request metrics and a queue dashboard before any tuning, because at this volume the interesting failures are timeouts and rate limits rather than throughput. Backups for Postgres, because the bucket holds audio but the database holds the only copy of what was said about it. And a second worker once the queue depth makes one process the bottleneck.`,
   },
 ];
 

@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 
-import type { Note } from "@/lib/api";
+import type { Note, TranscriptIteration } from "@/lib/api";
 import { formatDuration } from "@/lib/audio-meta";
 import { downloadTranscript } from "@/lib/notes";
 
@@ -30,19 +30,26 @@ export function SessionCard({
   note: Note;
   onDelete: (noteId: string) => void | Promise<void>;
   onRename: (noteId: string, title: string) => void | Promise<void>;
-  onRetry: (noteId: string) => void | Promise<void>;
+  onRetry: (noteId: string, target?: "transcription" | "summary") => void | Promise<void>;
 }) {
-  // What the reload glyph does depends on how far the note got: a note with a
-  // transcript only needs its summary re-run, anything earlier needs transcribing.
-  const regenerate = canRegenerate(note)
-    ? {
-        label: note.transcript
-          ? "Regenerate summary"
-          : note.status === "failed"
-            ? "Retry transcription"
-            : "Start transcription",
-      }
-    : null;
+  const regenerating = canRegenerate(note);
+  // Show the recorded history when there is one, and fall back to the note's own
+  // transcript for rows uploaded before iterations were kept.
+  const passes: TranscriptIteration[] =
+    note.iterations?.length
+      ? note.iterations
+      : note.transcript
+        ? [
+            {
+              id: note.id,
+              status: note.status,
+              transcript: note.transcript,
+              duration_seconds: note.duration_seconds,
+              error: null,
+              created_at: note.created_at,
+            },
+          ]
+        : [];
 
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(note.title);
@@ -87,9 +94,9 @@ export function SessionCard({
           {note.duration_seconds ? ` · ${formatDuration(note.duration_seconds)}` : ""} ·{" "}
           {note.language_code} · {new Date(note.created_at).toLocaleString()}
         </p>
-        {regenerate ? (
+        {regenerating ? (
           <button
-            aria-label={regenerate.label}
+            aria-label="Transcribe this file again"
             className="shrink-0 text-[13px] leading-none text-muted hover:text-ink"
             disabled={busy}
             onClick={async () => {
@@ -100,7 +107,7 @@ export function SessionCard({
                 setBusy(false);
               }
             }}
-            title={regenerate.label}
+            title="Transcribe this file again"
             type="button"
           >
             ↻
@@ -109,10 +116,26 @@ export function SessionCard({
       </div>
 
       <div className="mt-5 border-l-2 border-ink pl-4">
-        <p className="micro">Transcript</p>
-        <p className="mt-2 text-[15px] leading-relaxed whitespace-pre-wrap">
-          {note.transcript ?? "No transcript yet."}
+        <p className="micro">
+          Transcript{passes.length > 1 ? ` · ${passes.length} passes` : ""}
         </p>
+        {passes.length === 0 ? (
+          <p className="mt-2 text-[15px] text-muted">No transcript yet.</p>
+        ) : (
+          passes.map((pass, index) => (
+            <div className="mt-3 first:mt-2" key={pass.id}>
+              {passes.length > 1 ? (
+                <p className="nums text-[11px] text-muted">
+                  Pass {index + 1} · {new Date(pass.created_at).toLocaleString()} ·{" "}
+                  {pass.status === "failed" ? "failed" : "ok"}
+                </p>
+              ) : null}
+              <p className="mt-1 text-[15px] leading-relaxed whitespace-pre-wrap">
+                {pass.transcript ?? pass.error?.message ?? "No transcript."}
+              </p>
+            </div>
+          ))
+        )}
       </div>
 
       <div className="mt-5 border-l-2 border-rule pl-4">
@@ -122,8 +145,27 @@ export function SessionCard({
             {note.summary}
           </p>
         ) : (
-          <p className="mt-2 text-[15px] text-muted">
+          <p className="mt-2 flex items-center gap-2 text-[15px] text-muted">
             {note.status === "summarising" ? "Writing the summary…" : "No summary yet."}
+            {note.status !== "summarising" ? (
+              <button
+                aria-label="Write the summary"
+                className="text-[13px] leading-none text-muted hover:text-ink"
+                disabled={busy}
+                onClick={async () => {
+                  setBusy(true);
+                  try {
+                    await onRetry(note.id, "summary");
+                  } finally {
+                    setBusy(false);
+                  }
+                }}
+                title="Write the summary"
+                type="button"
+              >
+                ↻
+              </button>
+            ) : null}
           </p>
         )}
       </div>

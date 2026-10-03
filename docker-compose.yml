@@ -35,14 +35,12 @@ services:
       PYTHONPATH: /srv
       PROCRASTINATE_APP: src.queue.app
       DATABASE_URL: postgresql+asyncpg://audio_notes:audio_notes@postgres:5432/audio_notes
-      DATA_DIR: /srv/data
       AUTH_JWKS_URL: http://frontend:3000/api/auth/jwks
       AUTH_AUDIENCE: ${BETTER_AUTH_URL:-http://localhost:3000}
       GNANI_API_KEY: ${GNANI_API_KEY:?set GNANI_API_KEY in .env}
-      STORAGE_BACKEND: ${STORAGE_BACKEND:-local}
-      R2_ACCOUNT_ID: ${R2_ACCOUNT_ID:-}
-      R2_ACCESS_KEY_ID: ${R2_ACCESS_KEY_ID:-}
-      R2_SECRET_ACCESS_KEY: ${R2_SECRET_ACCESS_KEY:-}
+      R2_ACCOUNT_ID: ${R2_ACCOUNT_ID:?set R2_ACCOUNT_ID in .env}
+      R2_ACCESS_KEY_ID: ${R2_ACCESS_KEY_ID:?set R2_ACCESS_KEY_ID in .env}
+      R2_SECRET_ACCESS_KEY: ${R2_SECRET_ACCESS_KEY:?set R2_SECRET_ACCESS_KEY in .env}
       R2_BUCKET: ${R2_BUCKET:-gnani-bucket}
       R2_PRESIGN_EXPIRY_SECONDS: ${R2_PRESIGN_EXPIRY_SECONDS:-3600}
       GROQ_API_KEY: ${GROQ_API_KEY:?set GROQ_API_KEY in .env}
@@ -57,8 +55,6 @@ services:
       WORKER_HEARTBEAT_SECONDS: ${WORKER_HEARTBEAT_SECONDS:-30}
     ports:
       - "8000:8000"
-    volumes:
-      - audio_data:/srv/data
     depends_on:
       postgres:
         condition: service_healthy
@@ -72,14 +68,12 @@ services:
     environment:
       PYTHONPATH: /srv
       DATABASE_URL: postgresql+asyncpg://audio_notes:audio_notes@postgres:5432/audio_notes
-      DATA_DIR: /srv/data
       AUTH_JWKS_URL: http://frontend:3000/api/auth/jwks
       AUTH_AUDIENCE: ${BETTER_AUTH_URL:-http://localhost:3000}
       GNANI_API_KEY: ${GNANI_API_KEY:?set GNANI_API_KEY in .env}
-      STORAGE_BACKEND: ${STORAGE_BACKEND:-local}
-      R2_ACCOUNT_ID: ${R2_ACCOUNT_ID:-}
-      R2_ACCESS_KEY_ID: ${R2_ACCESS_KEY_ID:-}
-      R2_SECRET_ACCESS_KEY: ${R2_SECRET_ACCESS_KEY:-}
+      R2_ACCOUNT_ID: ${R2_ACCOUNT_ID:?set R2_ACCOUNT_ID in .env}
+      R2_ACCESS_KEY_ID: ${R2_ACCESS_KEY_ID:?set R2_ACCESS_KEY_ID in .env}
+      R2_SECRET_ACCESS_KEY: ${R2_SECRET_ACCESS_KEY:?set R2_SECRET_ACCESS_KEY in .env}
       R2_BUCKET: ${R2_BUCKET:-gnani-bucket}
       R2_PRESIGN_EXPIRY_SECONDS: ${R2_PRESIGN_EXPIRY_SECONDS:-3600}
       GROQ_API_KEY: ${GROQ_API_KEY:?set GROQ_API_KEY in .env}
@@ -91,8 +85,6 @@ services:
       STT_BATCH_DEADLINE_SECONDS: ${STT_BATCH_DEADLINE_SECONDS:-900}
       WORKER_LEASE_SECONDS: ${WORKER_LEASE_SECONDS:-120}
       WORKER_HEARTBEAT_SECONDS: ${WORKER_HEARTBEAT_SECONDS:-30}
-    volumes:
-      - audio_data:/srv/data
     depends_on:
       backend:
         condition: service_healthy
@@ -144,4 +136,3 @@ services:
 
 volumes:
   postgres_data:
-  audio_data:

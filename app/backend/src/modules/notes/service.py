@@ -9,7 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src import storage
 from src.config import LANGUAGES, UNSUPPORTED_BY_BATCH, settings
-from src.db.models import Note, NoteStatus
+from src.db.models import Note, NoteStatus, TranscriptIteration
 from src.queue import defer_summarisation, defer_transcription
 
 AUDIO_PATH = f"/api/notes/{{id}}/audio"
@@ -54,6 +54,39 @@ def resolve_language_code(language_code: str | None) -> str:
         )
 
     return ",".join(codes)
+
+
+async def with_iterations(session: AsyncSession, note: Note) -> dict:
+    payload = await to_note(note)
+    payload["iterations"] = await iterations_for(session, note.id)
+    return payload
+
+
+async def iterations_for(session: AsyncSession, note_id: UUID) -> list[dict]:
+    """Every transcription pass for a note, oldest first."""
+    rows = (
+        await session.execute(
+            select(TranscriptIteration)
+            .where(TranscriptIteration.note_id == note_id)
+            .order_by(TranscriptIteration.created_at.asc(), TranscriptIteration.id.asc())
+        )
+    ).scalars()
+
+    return [
+        {
+            "id": str(row.id),
+            "status": row.status,
+            "transcript": row.transcript,
+            "duration_seconds": row.duration_seconds,
+            "error": (
+                {"code": row.error_code, "message": row.error_message}
+                if row.error_code
+                else None
+            ),
+            "created_at": row.created_at.isoformat(),
+        }
+        for row in rows
+    ]
 
 
 async def to_note(note: Note, *, include_content: bool = True) -> dict:
@@ -129,7 +162,7 @@ async def create(
     await session.commit()
     await session.refresh(note)
     await defer_transcription(str(note.id), str(note.user_id))
-    return await to_note(note)
+    return await with_iterations(session, note)
 
 
 async def list_for_user(session: AsyncSession, user_id: str, limit: int) -> list[dict]:
@@ -165,17 +198,37 @@ async def rename(
     note.title = cleaned
     await session.commit()
     await session.refresh(note)
-    return await to_note(note)
+    return await with_iterations(session, note)
 
 
-async def retry(session: AsyncSession, user_id: str, note_id: UUID) -> dict:
+async def retry(
+    session: AsyncSession, user_id: str, note_id: UUID, target: str | None = None
+) -> dict:
     note = await get_for_user(session, user_id, note_id)
-    # queued is retryable too: a note whose job died before it was claimed stays
-    # queued forever otherwise, and the user is the only one who can ask again.
-    if note.status not in (NoteStatus.FAILED, NoteStatus.QUEUED):
+    asked_for_a_new_pass = target is not None
+
+    if target is None:
+        target = "summary" if note.transcript else "transcription"
+
+    if target == "summary" and not note.transcript:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
-            detail=f"Only failed or queued notes can be retried, this one is {note.status.value}",
+            detail="There is no transcript to summarise yet.",
+        )
+
+    if target == "transcription" and note.status in (
+        NoteStatus.QUEUED,
+        NoteStatus.TRANSCRIBING,
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"Transcription is already running ({note.status.value}).",
+        )
+
+    if target == "summary" and note.status == NoteStatus.SUMMARISING:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="The summary is already being written.",
         )
     note.status = NoteStatus.QUEUED
     note.error_code = None
@@ -185,18 +238,24 @@ async def retry(session: AsyncSession, user_id: str, note_id: UUID) -> dict:
     note.attempt_id = None
     note.lease_expires_at = None
 
-    # Retry the step that failed. A note with a transcript only needs its summary,
-    # so pressing Retry never pays for transcription twice.
-    resuming_summary = bool(note.transcript)
-    note.status = NoteStatus.SUMMARISING if resuming_summary else NoteStatus.QUEUED
-
-    await session.commit()
-    await session.refresh(note)
-    if resuming_summary:
+    if target == "summary":
+        note.status = NoteStatus.SUMMARISING
+        await session.commit()
+        await session.refresh(note)
         await defer_summarisation(str(note.id), str(note.user_id))
     else:
+        note.status = NoteStatus.QUEUED
+        if asked_for_a_new_pass:
+            # The user explicitly asked for another transcript, so resuming the
+            # previous provider job would hand back the identical text. Forgetting
+            # it here is deliberate. An inferred retry keeps the job id instead: the
+            # worker resumes a live job and only resubmits when it turned out dead.
+            note.provider_job_id = None
+            note.provider_submitted_at = None
+        await session.commit()
+        await session.refresh(note)
         await defer_transcription(str(note.id), str(note.user_id))
-    return await to_note(note)
+    return await with_iterations(session, note)
 
 
 async def delete(session: AsyncSession, user_id: str, note_id: UUID) -> None:

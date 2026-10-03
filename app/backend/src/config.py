@@ -59,11 +59,8 @@ class Settings(BaseSettings):
     stt_rest_timeout_seconds: float = 90
     stt_poll_interval_seconds: float = 30
     stt_batch_deadline_seconds: float = 900
-    data_dir: Path = Path("data")
     auth_jwks_url: str = "http://localhost:3000/api/auth/jwks"
     auth_audience: str = "http://localhost:3000"
-    # local | r2. Object storage in production, disk in development.
-    storage_backend: str = "local"
     r2_account_id: str = ""
     r2_access_key_id: str = ""
     r2_secret_access_key: str = ""
@@ -82,6 +79,8 @@ class Settings(BaseSettings):
     llm_model_cooldown_seconds: float = 300
     worker_lease_seconds: float = 120
     worker_heartbeat_seconds: float = 30
+    # How often the worker reclaims notes abandoned by a dead worker.
+    worker_recovery_interval_seconds: float = 60
     worker_queues: str = "transcription,summarisation"
     enable_dev_auth: bool = False
     dev_user_id: str = "dev-user"
@@ -112,15 +111,7 @@ class Settings(BaseSettings):
 
     @model_validator(mode="after")
     def r2_credentials_present(self) -> "Settings":
-        """The R2 backend is useless without credentials, and half of one is worse."""
-        if self.storage_backend == "local":
-            return self
-
-        if self.storage_backend != "r2":
-            raise ValueError(
-                f"STORAGE_BACKEND must be 'local' or 'r2', not {self.storage_backend!r}."
-            )
-
+        """Audio lives in R2, so half a set of credentials is worse than none."""
         missing = [
             name
             for name, value in (
@@ -133,8 +124,8 @@ class Settings(BaseSettings):
         ]
         if missing:
             raise ValueError(
-                f"STORAGE_BACKEND=r2 requires {', '.join(missing)}. Create a bucket and an "
-                "R2 API token with Object Read & Write at "
+                f"Audio storage needs {', '.join(missing)}. Create a bucket and an R2 "
+                "API token with Object Read & Write at "
                 "https://dash.cloudflare.com/?to=/:account/r2/api-tokens"
             )
         return self
@@ -187,9 +178,6 @@ postgresql://. This service needs the async driver."""
         """Procrastinate speaks psycopg3; SQLAlchemy speaks asyncpg. One URL, two drivers."""
         return self.database_url.replace("+asyncpg", "")
 
-    @property
-    def uploads_dir(self) -> Path:
-        return self.data_dir / "uploads"
 
 
 @lru_cache

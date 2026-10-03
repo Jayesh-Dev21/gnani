@@ -2,12 +2,24 @@ import { authClient } from "./auth-client";
 
 export type NoteStatus = "queued" | "transcribing" | "ready" | "summarising" | "failed";
 
+/** One transcription pass. A note keeps every pass, so a later failure never
+    erases an earlier success. */
+export interface TranscriptIteration {
+  id: string;
+  status: NoteStatus;
+  transcript: string | null;
+  duration_seconds: number | null;
+  error: { code: string; message: string } | null;
+  created_at: string;
+}
+
 export type NoteError = { code: string; message: string } | null;
 
 export type Note = {
   id: string;
   title: string;
   status: NoteStatus;
+  iterations: TranscriptIteration[];
   filename: string;
   content_type: string;
   size_bytes: number;
@@ -70,14 +82,23 @@ async function readError(response: Response): Promise<string> {
   }
 }
 
+/** Where the audio lives.
+ *
+ * A relative path is served by our own API, so it needs the API base. An absolute
+ * URL is already a short-lived signed link to object storage and must be used
+ * exactly as it is, or the base gets glued onto the front of it. */
 export function audioUrl(note: Note): string | null {
-  return note.audio_url ? `${API_URL}${note.audio_url}` : null;
+  const path = note.audio_url;
+  if (!path) return null;
+  return /^https?:\/\//.test(path) ? path : `${API_URL}${path}`;
 }
 
 /** The audio element cannot send an Authorization header, so the bytes are
-fetched with the session token and handed to the player as an object URL. */
+fetched with the session token and handed to the player as an object URL. A signed
+URL needs neither, so it is passed straight through. */
 export async function fetchAudio(path: string | null): Promise<string | null> {
   if (!path) return null;
+  if (/^https?:\/\//.test(path)) return path;
 
   const response = await fetch(`${API_URL}${path}`, { headers: await authHeaders() });
   if (!response.ok) throw new Error(await readError(response));
@@ -129,5 +150,10 @@ export const renameNote = (id: string, title: string) =>
 export const deleteNote = (id: string) =>
   request<void>(`/api/notes/${id}`, { method: "DELETE" });
 
-export const retryNote = (id: string) =>
-  request<Note>(`/api/notes/${id}/retry`, { method: "POST" });
+export function retryNote(id: string, target?: "transcription" | "summary") {
+  return request<Note>(`/api/notes/${id}/retry`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(target ? { target } : {}),
+  });
+}
