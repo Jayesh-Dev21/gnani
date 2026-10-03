@@ -23,10 +23,14 @@ FROM node:22-bookworm-slim AS builder
 
 WORKDIR /srv
 
-ENV NEXT_TELEMETRY_DISABLED=1 \
-    NEXT_PUBLIC_API_URL=http://localhost:8000
+ENV NEXT_TELEMETRY_DISABLED=1
 
-ARG NEXT_PUBLIC_API_URL
+# Build arg from docker-compose (falls back to localhost for local builds).
+# Must be mapped into ENV: a bare ARG is invisible to `next build`, which reads
+# process.env, so without this line every image bakes in localhost and browsers
+# outside the build host fail with "NetworkError when attempting to fetch resource".
+ARG NEXT_PUBLIC_API_URL=http://localhost:8000
+ENV NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL}
 
 COPY --from=deps /srv/node_modules ./node_modules
 COPY . .
