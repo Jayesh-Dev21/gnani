@@ -5,6 +5,13 @@ import { useCallback, useEffect, useState } from "react";
 import { deleteNote, listNotes, renameNote, retryNote } from "./api";
 import type { Note, NoteSummary } from "./api";
 
+function formatStamp(seconds: number): string {
+  if (!Number.isFinite(seconds) || seconds < 0) return "0:00";
+  const total = Math.floor(seconds);
+  const minutes = Math.floor(total / 60);
+  return `${minutes}:${String(total % 60).padStart(2, "0")}`;
+}
+
 export function useSessions() {
   const [notes, setNotes] = useState<NoteSummary[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -58,6 +65,11 @@ export function useSessions() {
 }
 
 export function downloadTranscript(note: Note): void {
+  const transcript = note.segments?.length
+    ? note.segments
+        .map((segment) => `[${formatStamp(segment.start)}] ${segment.text}`)
+        .join("\n")
+    : (note.transcript ?? "(no transcript yet)");
   const body = [
     `# ${note.title}`,
     "",
@@ -66,7 +78,7 @@ export function downloadTranscript(note: Note): void {
     "",
     "## Transcript",
     "",
-    note.transcript ?? "(no transcript yet)",
+    transcript,
     "",
     "## Summary",
     "",

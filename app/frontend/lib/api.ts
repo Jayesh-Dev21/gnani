@@ -8,9 +8,18 @@ export interface TranscriptIteration {
   id: string;
   status: NoteStatus;
   transcript: string | null;
+  segments: TranscriptSegment[] | null;
   duration_seconds: number | null;
   error: { code: string; message: string } | null;
   created_at: string;
+}
+
+/** One timestamped stretch of a transcript, in seconds from the start. Null
+    when the pass predates segment storage or the provider gave none. */
+export interface TranscriptSegment {
+  start: number;
+  end: number | null;
+  text: string;
 }
 
 export type NoteError = { code: string; message: string } | null;
@@ -26,6 +35,7 @@ export type Note = {
   duration_seconds: number | null;
   language_code: string;
   transcript: string | null;
+  segments: TranscriptSegment[] | null;
   summary: string | null;
   error: NoteError;
   audio_url: string | null;
@@ -33,7 +43,7 @@ export type Note = {
   updated_at: string;
 };
 
-export type NoteSummary = Omit<Note, "transcript" | "summary">;
+export type NoteSummary = Omit<Note, "transcript" | "segments" | "summary">;
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 

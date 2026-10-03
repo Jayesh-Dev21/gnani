@@ -45,9 +45,19 @@ class RateLimited(Exception):
 
 
 @dataclass(frozen=True)
+class Segment:
+    """One timestamped stretch of a transcript, in seconds from the start."""
+
+    start: float
+    end: float | None
+    text: str
+
+
+@dataclass(frozen=True)
 class Transcript:
     text: str
     duration_seconds: float | None = None
+    segments: tuple[Segment, ...] = ()
 
 
 def _headers() -> dict[str, str]:
@@ -103,7 +113,18 @@ async def transcribe_rest(path: Path, language_code: str) -> Transcript:
     text = (body.get("transcript") or "").strip()
     if not text:
         raise GnaniError("empty_transcript", "Gnani returned an empty transcript")
-    return Transcript(text=text)
+    segments = _parse_segments(body)
+    if not segments:
+        # The synchronous endpoint does not promise per-segment times. One
+        # line for the whole clip keeps the UI uniform without inventing any.
+        segments = (
+            Segment(
+                start=0.0,
+                end=_as_float(body.get("duration_seconds", body.get("duration"))),
+                text=text,
+            ),
+        )
+    return Transcript(text=text, segments=segments)
 
 
 async def create_batch_job(
@@ -246,7 +267,39 @@ async def batch_transcript(job_id: str) -> Transcript:
     text = (body.get("full_transcript") or "").strip()
     if not text:
         raise GnaniError("empty_transcript", "The batch job returned an empty transcript")
-    return Transcript(text=text, duration_seconds=_as_float(body.get("duration_seconds")))
+    return Transcript(
+        text=text,
+        duration_seconds=_as_float(body.get("duration_seconds")),
+        segments=_parse_segments(body),
+    )
+
+
+def _parse_segments(body: dict) -> tuple[Segment, ...]:
+    """Pull per-segment timestamps out of a transcript payload, tolerantly.
+
+    The Batch download carries segments[] with start_time/end_time in seconds
+    and text. Anything unexpected yields no segments rather than a failed
+    transcription: times are presentation, the text is the product.
+    """
+    raw = body.get("segments")
+    if not isinstance(raw, list):
+        return ()
+    segments: list[Segment] = []
+    for entry in raw:
+        if not isinstance(entry, dict):
+            continue
+        text = (entry.get("text") or "").strip()
+        start = _as_float(entry.get("start_time", entry.get("start")))
+        if not text or start is None:
+            continue
+        segments.append(
+            Segment(
+                start=start,
+                end=_as_float(entry.get("end_time", entry.get("end"))),
+                text=text,
+            )
+        )
+    return tuple(segments)
 
 
 async def wait_for_batch(

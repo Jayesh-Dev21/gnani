@@ -49,7 +49,15 @@ function formatTime(seconds: number): string {
   return `${Math.floor(total / 60)}:${String(total % 60).padStart(2, "0")}`;
 }
 
-export function AudioPlayer({ src, label }: { src: string; label: string }) {
+export function AudioPlayer({
+  src,
+  label,
+  seekTo,
+}: {
+  src: string;
+  label: string;
+  seekTo: { seconds: number; n: number } | null;
+}) {
   const audioRef = useRef<HTMLAudioElement>(null);
   const [playing, setPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
@@ -81,6 +89,20 @@ export function AudioPlayer({ src, label }: { src: string; label: string }) {
       audio.removeEventListener("ended", onEnded);
     };
   }, []);
+
+  // A transcript timestamp asks for a jump. Seeking before metadata loads is
+  // applied once the duration is known.
+  useEffect(() => {
+    const audio = audioRef.current;
+    if (!audio || !seekTo) return;
+    const jump = () => {
+      audio.currentTime = Math.max(0, seekTo.seconds);
+      setCurrentTime(audio.currentTime);
+    };
+    if (Number.isFinite(audio.duration) && audio.duration > 0) jump();
+    else audio.addEventListener("loadedmetadata", jump, { once: true });
+    return () => audio.removeEventListener("loadedmetadata", jump);
+  }, [seekTo]);
 
   async function toggle() {
     const audio = audioRef.current;

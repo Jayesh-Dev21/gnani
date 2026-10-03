@@ -7,7 +7,13 @@ import { fetchAudio } from "@/lib/api";
 
 import { AudioPlayer } from "./audio-player";
 
-export function PlaybackBar({ note }: { note: Note }) {
+export function PlaybackBar({
+  note,
+  seekRequest,
+}: {
+  note: Note;
+  seekRequest: { seconds: number; n: number } | null;
+}) {
   const [src, setSrc] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const audioPath = note.audio_url;
@@ -49,7 +55,7 @@ export function PlaybackBar({ note }: { note: Note }) {
         {error ? (
           <p className="text-[13px] text-muted">Audio unavailable: {error}</p>
         ) : src ? (
-          <AudioPlayer label={`Audio for ${note.title}`} src={src} />
+          <AudioPlayer label={`Audio for ${note.title}`} seekTo={seekRequest} src={src} />
         ) : (
           <p className="micro">Loading audio</p>
         )}
