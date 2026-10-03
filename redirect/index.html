@@ -4,24 +4,271 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <!-- 1. The primary HTML redirect. '0' means 0 seconds (instant). -->
-    <meta http-equiv="refresh" content="0;url=http://3.111.18.213:3000/">
-    <title>Redirecting...</title>
+    <title>Redirecting — Audio Notes</title>
 
-    <!-- 2. JavaScript fallback: executes if HTML refresh fails -->
-    <script type="text/javascript">
-        window.location.replace("http://3.111.18.213:3000/");
+    <!-- 5-second countdown, then redirect -->
+    <script>
+        var DEST = "http://3.111.18.213:3000/";
+        var secs = 5;
+        document.addEventListener("DOMContentLoaded", function () {
+            var label = document.getElementById("countdown-label");
+            var subtitle = document.getElementById("subtitle-secs");
+            function tick() {
+                if (label) label.textContent = "Redirecting in " + secs + "s";
+                if (subtitle) subtitle.textContent = secs;
+                if (secs <= 0) { window.location.replace(DEST); return; }
+                secs--;
+                setTimeout(tick, 1000);
+            }
+            tick();
+        });
     </script>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500&family=Geist+Mono:wght@400&display=swap"
+        rel="stylesheet">
+
+    <style>
+        :root {
+            --paper: #ffffff;
+            --ink: #0b0b0c;
+            --muted: #6f6f73;
+            --rule: #e6e6e8;
+        }
+
+        @media (prefers-color-scheme: dark) {
+            :root {
+                --paper: #0a0a0b;
+                --ink: #f1f1f2;
+                --muted: #8a8a90;
+                --rule: #26262a;
+            }
+        }
+
+        *,
+        *::before,
+        *::after {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            background: var(--paper);
+            color: var(--ink);
+            font-family: "Geist", ui-sans-serif, system-ui, sans-serif;
+            -webkit-font-smoothing: antialiased;
+            min-height: 100dvh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* ── Top bar ── */
+        header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            border-bottom: 1px solid var(--rule);
+            padding: 16px 24px;
+        }
+
+        .wordmark {
+            font-size: 14px;
+            font-weight: 500;
+            letter-spacing: -0.01em;
+            text-decoration: none;
+            color: var(--ink);
+        }
+
+        .badge {
+            font-size: 11px;
+            letter-spacing: 0.14em;
+            text-transform: uppercase;
+            color: var(--muted);
+        }
+
+        /* ── Main content ── */
+        main {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 48px 24px;
+        }
+
+        .card {
+            width: 100%;
+            max-width: 360px;
+            border: 1px solid var(--rule);
+            padding: 32px;
+            animation: reveal 0.2s ease-out both;
+        }
+
+        @keyframes reveal {
+            from {
+                opacity: 0;
+                transform: translateY(8px);
+            }
+
+            to {
+                opacity: 1;
+                transform: none;
+            }
+        }
+
+        .label {
+            font-size: 11px;
+            letter-spacing: 0.14em;
+            text-transform: uppercase;
+            color: var(--muted);
+            margin-bottom: 16px;
+        }
+
+        h1 {
+            font-size: 18px;
+            font-weight: 500;
+            letter-spacing: -0.02em;
+            margin-bottom: 8px;
+        }
+
+        .subtitle {
+            font-size: 13px;
+            color: var(--muted);
+            line-height: 1.6;
+            margin-bottom: 28px;
+        }
+
+        /* Spinner */
+        .spinner-row {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 28px;
+        }
+
+        .spinner {
+            width: 14px;
+            height: 14px;
+            border: 1.5px solid var(--rule);
+            border-top-color: var(--ink);
+            border-radius: 50%;
+            animation: spin 0.7s linear infinite;
+            flex-shrink: 0;
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+            .spinner {
+                animation: none;
+                border-top-color: var(--muted);
+            }
+        }
+
+        @keyframes spin {
+            to {
+                transform: rotate(360deg);
+            }
+        }
+
+        .spinner-label {
+            font-size: 11px;
+            letter-spacing: 0.1em;
+            text-transform: uppercase;
+            color: var(--muted);
+        }
+
+        /* Manual fallback */
+        .rule-line {
+            border: none;
+            border-top: 1px solid var(--rule);
+            margin-bottom: 20px;
+        }
+
+        .fallback-label {
+            font-size: 11px;
+            letter-spacing: 0.14em;
+            text-transform: uppercase;
+            color: var(--muted);
+            display: block;
+            margin-bottom: 10px;
+        }
+
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            height: 36px;
+            padding: 0 16px;
+            border: 1px solid var(--ink);
+            background: var(--paper);
+            color: var(--ink);
+            font-family: inherit;
+            font-size: 11px;
+            letter-spacing: 0.12em;
+            text-transform: uppercase;
+            text-decoration: none;
+            cursor: pointer;
+            transition: background 0.14s ease, color 0.14s ease;
+        }
+
+        .btn:hover {
+            background: var(--ink);
+            color: var(--paper);
+        }
+
+        /* ── Footer ── */
+        footer {
+            border-top: 1px solid var(--rule);
+            padding: 16px 24px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .footer-name {
+            font-size: 11px;
+            letter-spacing: 0.12em;
+            text-transform: uppercase;
+            color: var(--muted);
+        }
+
+        .footer-roll {
+            font-family: "Geist Mono", ui-monospace, monospace;
+            font-size: 11px;
+            color: var(--muted);
+            letter-spacing: 0.04em;
+        }
+    </style>
 </head>
 
 <body>
-    <!-- 3. Manual fallback link: shown if the browser blocks automatic redirects -->
-    <p>If you are not redirected automatically, please follow the
-        <a href="http://3.111.18.213:3000/">link to the new destination</a>.
-        Which is the AWS delpoyed site
-    </p>
-    <h4>By Jayesh Krishan Puri - IIT(BHU)</h4>
-    24155058
+
+    <header>
+        <span class="wordmark">Audio Notes</span>
+        <span class="badge">AWS Deploy</span>
+    </header>
+
+    <main>
+        <div class="card">
+            <p class="label">Redirect</p>
+            <h1>Taking you there</h1>
+            <p class="subtitle">You're being forwarded to the AWS-deployed instance in <span id="subtitle-secs">5</span> seconds.</p>
+
+            <div class="spinner-row">
+                <span class="spinner" aria-hidden="true"></span>
+                <span class="spinner-label" id="countdown-label">Redirecting in 5s</span>
+            </div>
+
+            <hr class="rule-line">
+            <span class="fallback-label">Not redirecting?</span>
+            <a class="btn" href="http://3.111.18.213:3000/" id="manual-link">Open manually</a>
+        </div>
+    </main>
+
+    <footer>
+        <span class="footer-name">Jayesh Krishan Puri &mdash; IIT (BHU)</span>
+        <span class="footer-roll">24155058</span>
+    </footer>
+
 </body>
 
 </html>
