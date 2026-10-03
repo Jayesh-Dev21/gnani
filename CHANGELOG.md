@@ -219,3 +219,14 @@
   rejects as invalid JSON, and then a `cloud_storage` source it cannot fulfil for R2.
   Both endpoints now receive the bytes, downloaded from R2 once into a temporary
   file that is released before polling starts.
+
+### Fixes
+
+- **87f20d4**: A re-transcribed note kept the old transcript's summary;
+  `_mark_ready` now clears it and the summary job re-runs against the new pass.
+- **87f20d4**: Audio duration showed garbage (21:32) and did not play for raw ADTS
+  AAC / AMR uploads; the audio route now transcodes those to mp3, direct-serves
+  browser-ready containers with Range, and uploads are probed with ffprobe.
+- **87f20d4**: Architecture page stale sections removed, diagram arrows corrected,
+  Punjabi/Gujarati batch support, live transcript and segment time indexing added
+  to the roadmap.
