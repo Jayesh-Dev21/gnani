@@ -37,6 +37,12 @@ REDUCE_PROMPT = (
     "action item, drop repetition, and do not add anything new."
 )
 
+TRANSLATE_PROMPT = (
+    "Translate the following transcript to English. Preserve what was actually "
+    "said, in order, without summarising, condensing or adding anything. If the "
+    "text is already in English, return it unchanged."
+)
+
 
 class LLMError(Exception):
     """Summarisation failed for a reason the user can act on."""
@@ -220,11 +226,20 @@ def _chunks(text: str, size: int) -> list[str]:
     return chunks or ([text] if text.strip() else [])
 
 
-async def summarise_transcript(transcript: str) -> ChainResult:
-    """Summarise a transcript, reducing chunk by chunk when it is long."""
+async def summarise_transcript(transcript: str, language_code: str | None = None) -> ChainResult:
+    """Summarise a transcript, reducing chunk by chunk when it is long.
+
+    Non-English transcripts are translated to English first through the same
+    model chain, then summarised, so every summary reads the same way no
+    matter which language was recorded.
+    """
     cleaned = (transcript or "").strip()
     if not cleaned:
         return ChainResult(text="(no speech detected)", model="none")
+
+    if _needs_translation(language_code):
+        log.info("translating %s transcript to English before summarising", language_code)
+        cleaned = await _translate_to_english(cleaned)
 
     chunks = _chunks(cleaned, settings.llm_chunk_chars)
     if len(chunks) == 1:
@@ -239,6 +254,28 @@ async def summarise_transcript(transcript: str) -> ChainResult:
         summaries.append(f"Part {index}:\n{result.text}")
 
     return await _try_chain("\n\n".join(summaries), REDUCE_PROMPT)
+
+
+def _needs_translation(language_code: str | None) -> bool:
+    """True unless the recording's primary language is English.
+
+    The code is one locale or up to three comma-separated ones, first being
+    the fallback (e.g. "hi-IN" or "hi-IN,en-IN"); only an "en-*" primary
+    skips translation. Unknown or missing codes summarise as-is.
+    """
+    if not language_code:
+        return False
+    primary = language_code.split(",")[0].strip().lower()
+    return bool(primary) and not primary.startswith("en")
+
+
+async def _translate_to_english(text: str) -> str:
+    """Translate chunk by chunk so a long recording is never truncated."""
+    chunks = _chunks(text, settings.llm_chunk_chars)
+    translated = [ (await _try_chain(chunk, TRANSLATE_PROMPT)).text for chunk in chunks ]
+    if len(chunks) > 1:
+        log.info("translated %d chunks to English", len(chunks))
+    return "\n\n".join(translated)
 
 
 def _error_message(response: httpx.Response) -> str:

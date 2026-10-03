@@ -16,18 +16,30 @@ export function Sidebar({
   selectedId,
   onSelect,
   onNew,
+  onClose,
 }: {
   notes: NoteSummary[];
   selectedId: string | null;
   onSelect: (id: string) => void;
   onNew: () => void;
+  onClose?: () => void;
 }) {
   return (
     <aside className="flex h-full w-64 shrink-0 flex-col border-r border-rule">
-      <div className="px-4 py-4">
+      <div className="flex items-center gap-2 px-4 py-4">
         <button className="btn w-full" onClick={onNew} type="button">
           New recording
         </button>
+        {onClose ? (
+          <button
+            aria-label="Close notes list"
+            className="btn shrink-0"
+            onClick={onClose}
+            type="button"
+          >
+            ×
+          </button>
+        ) : null}
       </div>
 
       <div className="flex items-center justify-between px-4 pb-2">

@@ -15,7 +15,19 @@ export function Chat() {
   const { notes, error, refresh, rename, remove, retry } = useSessions();
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [note, setNote] = useState<Note | null>(null);
+  const [menuOpen, setMenuOpen] = useState(false);
   const endRef = useRef<HTMLDivElement>(null);
+
+  const closeMenu = useCallback(() => setMenuOpen(false), []);
+
+  useEffect(() => {
+    if (!menuOpen) return;
+    function onKey(event: KeyboardEvent) {
+      if (event.key === "Escape") closeMenu();
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [menuOpen, closeMenu]);
 
   const openNote = useCallback(async (id: string) => {
     try {
@@ -49,6 +61,11 @@ export function Chat() {
   function startNew() {
     setSelectedId(null);
     setNote(null);
+    closeMenu();
+  }
+
+  function openMenu() {
+    setMenuOpen(true);
   }
 
   return (
@@ -62,8 +79,34 @@ export function Chat() {
         />
       </div>
 
+      {menuOpen ? (
+        <div className="fixed inset-0 z-50 md:hidden">
+          <button
+            aria-label="Close notes list"
+            className="absolute inset-0 h-full w-full cursor-default bg-black/40"
+            onClick={closeMenu}
+            type="button"
+          />
+          <div className="relative h-full w-64 border-r border-rule bg-paper">
+            <Sidebar
+              notes={notes}
+              onClose={closeMenu}
+              onNew={startNew}
+              onSelect={(id) => {
+                setSelectedId(id);
+                closeMenu();
+              }}
+              selectedId={target?.id ?? null}
+            />
+          </div>
+        </div>
+      ) : null}
+
       <div className="flex min-h-0 min-w-0 flex-1 flex-col">
         <div className="flex items-center gap-2 overflow-x-auto border-b border-rule px-4 py-2 md:hidden">
+          <button className="btn shrink-0" onClick={openMenu} type="button">
+            Menu
+          </button>
           <button className="btn shrink-0" onClick={startNew} type="button">
             New
           </button>

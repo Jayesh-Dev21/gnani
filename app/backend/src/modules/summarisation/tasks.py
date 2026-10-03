@@ -40,11 +40,12 @@ async def summarise_note(note_id: str, user_id: str, attempt_id: str | None = No
                 select(Note).where(Note.id == UUID(note_id), Note.user_id == user_id)
             )
             transcript = note.transcript if note else None
+            language_code = note.language_code if note else None
 
         if not transcript:
             raise llm.LLMError("summary_no_transcript", "There is no transcript to summarise.")
 
-        result = await llm.summarise_transcript(transcript)
+        result = await llm.summarise_transcript(transcript, language_code)
 
         async with session_factory() as session:
             await _write_summary(session, UUID(note_id), user_id, attempt, result.text)
