@@ -29,7 +29,7 @@ services:
       - -c
       - >-
         alembic upgrade head &&
-        procrastinate schema --apply &&
+        python -m src.db.ensure_procrastinate_schema &&
         uvicorn src.main:app --host 0.0.0.0 --port 8000 --proxy-headers --forwarded-allow-ips '*'
     environment:
       PYTHONPATH: /srv
