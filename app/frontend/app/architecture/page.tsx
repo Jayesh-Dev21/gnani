@@ -28,7 +28,7 @@ Playback works around one browser limit: an audio element cannot send an Authori
 
 A worker claims the note and runs Gnani's Batch STT sequence: create, start, poll no tighter than ten seconds to a terminal status, list files, download the transcript URL. Batch takes whole files up to four hours, so nothing is ever chunked — chunking would only add mid-word splice artefacts.
 
-Gnani's Batch API deserves the praise: the create → start → poll → files → download sequence is explicit, terminal statuses are honest, and auth is one header. Still unexplored on our side: the metrics section for job observability, the live transcription path for realtime use, and smarter polling intervals per job size.
+Gnani's Batch API deserves the praise: the create → start → poll → files → download sequence is explicit, terminal statuses are honest, and auth is one header. The download already carries per-segment timestamps, so every pass stores them and the transcript renders as timestamped lines — clicking one jumps the player there. Still unexplored on our side: the metrics section for job observability, the live transcription path for realtime use, and smarter polling intervals per job size.
 
 The client polls the note endpoint while the status is non-terminal. Polling is the only source of progress truth: no websockets, no server-sent events.`,
   },
@@ -56,7 +56,7 @@ Nothing retries automatically after a provider call, because a retry would re-bi
   },
   {
     heading: "What I would change with more time",
-    body: `Observability first: Prometheus metrics on the API and workers with Grafana dashboards, because at this volume the interesting failures are timeouts and rate limits, not throughput. Then transcripts paginated for display, two-speaker diarization exposed, and editable transcripts and summaries. Live transcription from the microphone rather than the batch path, with segment-level time indexing so a line jumps the player to that moment. Gujarati and Punjabi are rejected at upload because Batch does not support them; that lifts the day the provider ships them.
+    body: `Observability first: Prometheus metrics on the API and workers with Grafana dashboards, because at this volume the interesting failures are timeouts and rate limits, not throughput. Then transcripts paginated for display, two-speaker diarization exposed, and editable transcripts and summaries. Live transcription from the microphone rather than the batch path. Gujarati and Punjabi are rejected at upload because Batch does not support them; that lifts the day the provider ships them.
 
 Backups for Postgres, because the bucket holds the audio but the database holds the only copy of what was said about it. And a second worker once queue depth makes one process the bottleneck.`,
   },

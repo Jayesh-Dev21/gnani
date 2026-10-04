@@ -1,0 +1,18 @@
+# Audio Notes
+
+Audio Notes is a personal transcription app: upload a recording, get a
+transcript (Gnani Batch STT, with per-segment timestamps) and an LLM summary
+(Groq, English-first). Stack: Next.js 16, FastAPI, PostgreSQL, Procrastinate
+background jobs, Cloudflare R2 object storage, one EC2 instance behind nginx.
+
+- App (login required): http://3.111.18.213/
+- How the system works: http://3.111.18.213/architecture
+- API (authenticated, JWT): http://3.111.18.213/api
+- Liveness: http://3.111.18.213/health
+
+## Notes
+
+- Every route except /health requires a Better Auth session.
+- Transcripts keep per-segment start/end times; summaries are generated from
+  an English translation of the transcript.
+- Uploads cap at 10MB: wav, mp3, m4a, flac, ogg, webm.

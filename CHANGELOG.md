@@ -230,3 +230,11 @@
 - **9e896fc**: Architecture page stale sections removed, diagram arrows corrected,
   Punjabi/Gujarati batch support, live transcript and segment time indexing added
   to the roadmap.
+
+### Features
+
+- **d1881a2**: Transcripts now carry per-segment timestamps end to end: Gnani's
+  `segments[]` are parsed (tolerantly — a bad entry is skipped, never fatal),
+  stored as JSON on the note and each pass, and rendered as timestamped lines
+  that seek the player on click. Passes without segments fall back to the plain
+  block, and downloads prefix each line with its time.
