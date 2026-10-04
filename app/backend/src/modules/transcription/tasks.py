@@ -215,19 +215,23 @@ async def _mark_ready(session, note_id: UUID, user_id: str, attempt: UUID, trans
     if note is None:
         return
     now = datetime.now(UTC)
+    segments = [
+        {"start": segment.start, "end": segment.end, "text": segment.text}
+        for segment in transcript.segments
+    ] or None
     session.add(
         TranscriptIteration(
             note_id=note_id,
             transcript=transcript.text,
             status=NoteStatus.READY.value,
             duration_seconds=transcript.duration_seconds,
+            segments=segments,
         )
     )
     note.status = NoteStatus.READY
     note.transcript = transcript.text
-    # Gnani sometimes omits the duration; a probed value from upload is better.
-    if transcript.duration_seconds is not None:
-        note.duration_seconds = transcript.duration_seconds
+    note.duration_seconds = transcript.duration_seconds
+    note.segments = segments
     note.error_code = None
     note.error_message = None
     # A fresh transcript invalidates any summary written against the old one.

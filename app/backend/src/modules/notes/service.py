@@ -77,6 +77,7 @@ async def iterations_for(session: AsyncSession, note_id: UUID) -> list[dict]:
             "id": str(row.id),
             "status": row.status,
             "transcript": row.transcript,
+            "segments": row.segments,
             "duration_seconds": row.duration_seconds,
             "error": (
                 {"code": row.error_code, "message": row.error_message}
@@ -109,6 +110,7 @@ async def to_note(note: Note, *, include_content: bool = True) -> dict:
     }
     if include_content:
         payload["transcript"] = note.transcript
+        payload["segments"] = note.segments
         payload["summary"] = note.summary
         # One field to play from. The API streams the bytes out of R2, so the browser
         # never needs a signed URL, a cross-origin grant or a link that expires.

@@ -16,6 +16,11 @@ export function Chat() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [note, setNote] = useState<Note | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
+  // A timestamp click in the transcript asks the player to jump. The counter
+  // re-fires the effect when the same second is picked twice in a row.
+  const [seekRequest, setSeekRequest] = useState<{ seconds: number; n: number } | null>(
+    null,
+  );
   const endRef = useRef<HTMLDivElement>(null);
 
   const closeMenu = useCallback(() => setMenuOpen(false), []);
@@ -144,6 +149,12 @@ export function Chat() {
                 }}
                 onRename={rename}
                 onRetry={retry}
+                onSeek={(seconds) =>
+                  setSeekRequest((previous) => ({
+                    seconds,
+                    n: (previous?.n ?? 0) + 1,
+                  }))
+                }
               />
             ) : (
               !error && (
@@ -163,7 +174,7 @@ export function Chat() {
         </div>
 
         {note ? (
-          <PlaybackBar note={note} />
+          <PlaybackBar note={note} seekRequest={seekRequest} />
         ) : (
           <Composer
             onUploaded={async (created) => {

@@ -21,16 +21,25 @@ function formatBytes(bytes: number): string {
   return `${(bytes / 1024 / 1024).toFixed(1)}MB`;
 }
 
+function formatStamp(seconds: number): string {
+  if (!Number.isFinite(seconds) || seconds < 0) return "0:00";
+  const total = Math.floor(seconds);
+  const minutes = Math.floor(total / 60);
+  return `${minutes}:${String(total % 60).padStart(2, "0")}`;
+}
+
 export function SessionCard({
   note,
   onDelete,
   onRename,
   onRetry,
+  onSeek,
 }: {
   note: Note;
   onDelete: (noteId: string) => void | Promise<void>;
   onRename: (noteId: string, title: string) => void | Promise<void>;
   onRetry: (noteId: string, target?: "transcription" | "summary") => void | Promise<void>;
+  onSeek: (seconds: number) => void;
 }) {
   const regenerating = canRegenerate(note);
   // Show the recorded history when there is one, and fall back to the note's own
@@ -44,6 +53,7 @@ export function SessionCard({
               id: note.id,
               status: note.status,
               transcript: note.transcript,
+              segments: note.segments,
               duration_seconds: note.duration_seconds,
               error: null,
               created_at: note.created_at,
@@ -130,9 +140,33 @@ export function SessionCard({
                   {pass.status === "failed" ? "failed" : "ok"}
                 </p>
               ) : null}
-              <p className="mt-1 text-[15px] leading-relaxed whitespace-pre-wrap">
-                {pass.transcript ?? pass.error?.message ?? "No transcript."}
-              </p>
+              {pass.segments?.length ? (
+                <div className="mt-1 flex flex-col">
+                  {pass.segments.map((segment, segmentIndex) => (
+                    <div
+                      className="flex items-baseline gap-3 py-0.5"
+                      key={`${pass.id}-${segmentIndex}`}
+                    >
+                      <button
+                        aria-label={`Jump to ${formatStamp(segment.start)}`}
+                        className="nums shrink-0 text-[11px] text-muted hover:text-ink"
+                        onClick={() => onSeek(segment.start)}
+                        title={`Jump to ${formatStamp(segment.start)}`}
+                        type="button"
+                      >
+                        {formatStamp(segment.start)}
+                      </button>
+                      <p className="min-w-0 flex-1 text-[15px] leading-relaxed">
+                        {segment.text}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="mt-1 text-[15px] leading-relaxed whitespace-pre-wrap">
+                  {pass.transcript ?? pass.error?.message ?? "No transcript."}
+                </p>
+              )}
             </div>
           ))
         )}
